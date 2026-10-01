@@ -1,0 +1,22 @@
+{
+  "default_profile": "lab-malicious",
+  "profiles": {
+    "lab-malicious": {
+      "base_url": "https://LAB_DNS_HOST:1606",
+      "certificate_sha256": "REPLACE_WITH_64_HEX_SHA256",
+      "account": "REPLACE_WITH_ACCOUNT",
+      "secret_file": "/absolute/path/to/lab-dns.secret",
+      "allow_forward_writes": true,
+      "traffic_dns_server": "LAB_DNS_HOST",
+      "traffic_dns_port": 53
+    }
+  },
+  "allowed_forward_suffixes": ["test", "example", "invalid"],
+  "allowed_forward_networks": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
+  "allowed_forward_ports": [53, 5353],
+  "max_export_bytes": 53687091200,
+  "min_free_bytes": 10737418240,
+  "max_traffic_queries": 500,
+  "max_traffic_qps": 20,
+  "plan_ttl_seconds": 1800
+}
