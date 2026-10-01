@@ -1,5 +1,9 @@
 # DNS Lab Agent Tools
 
+[English](#english) | [繁體中文](#繁體中文)
+
+## English
+
 Guarded function tools for a VLLM/OpenAI-compatible Agent operating controlled DNS security laboratories.
 
 The project supports reading forward configuration, exporting paired Proxy DNS logs, approved forward changes, and bounded synthetic high-entropy/DGA-like traffic. It includes certificate pinning, immutable plans, one-time approvals, audit logs, and before-state backups.
@@ -80,3 +84,96 @@ python -m unittest -v tests.test_dns_lab_tools
 - Sensitive runtime output is excluded by `.gitignore`.
 
 See [deployment documentation](docs/DEPLOYMENT_V1.md) and the [V2 profile/filter update](docs/V2_UPDATE.md).
+
+---
+
+## 繁體中文
+
+這是一套提供給 VLLM／OpenAI 相容 Agent 使用的受控函式工具，專門用於經授權的 DNS 資安實驗環境。
+
+本專案支援讀取 DNS Forward 設定、匯出已配對的 Proxy DNS Log、經人工核准後調整 Forward，以及產生有範圍限制的高熵／類 DGA 合成流量。安全機制包括 TLS 憑證指紋綁定、不可變更的操作計畫、一次性人工核准、稽核紀錄，以及變更前狀態備份。
+
+請勿把帳號密碼、原始 DNS Log、人工審核資料、模型或執行期產物提交到本專案。
+
+### 可用工具
+
+```text
+lab_dns_get_forwarders
+lab_dns_export_logs
+lab_dns_plan_forward_change
+lab_dns_apply_forward_plan
+lab_dns_plan_synthetic_traffic
+lab_dns_run_synthetic_traffic_plan
+```
+
+### 安裝方式
+
+將工具模組複製到現有 Agent 套件：
+
+```bash
+cp agent/dns_lab_tools.py /path/to/agent/dns_lab_tools.py
+cp agent/approve_dns_lab_plan.py /path/to/agent/approve_dns_lab_plan.py
+cp agent/dns_lab_config.example.json /path/to/agent/dns_lab_config.json
+```
+
+編輯設定檔，並建立設定檔所引用的機密檔案；機密檔案權限應設為 `0600`。
+
+在既有的工具註冊表中加入：
+
+```python
+from agent.dns_lab_tools import DNS_LAB_TOOL_DEFINITIONS, execute_dns_lab_tool
+
+TOOL_DEFINITIONS.extend(DNS_LAB_TOOL_DEFINITIONS)
+
+def execute_tool(name: str, arguments: dict) -> dict:
+    if name.startswith("lab_dns_"):
+        return execute_dns_lab_tool(name, arguments)
+    # 接續既有工具的處理邏輯。
+```
+
+測試通過後只需重新啟動 Agent 執行環境，不需要重新啟動 VLLM。
+
+### 新增 DNS 主機
+
+在 `profiles` 下增加一個具名設定即可，不需要修改 Python 程式。每個 profile 都能分別設定 URL、TLS 憑證指紋、機密資料引用、寫入權限及流量端點；未登錄的 profile 會被拒絕。
+
+### Log 篩選與匯出
+
+`lab_dns_export_logs` 支援以下篩選條件：
+
+- `domains`：指定網域
+- `exclude_domains`：排除網域
+- `qtypes`：DNS Query Type
+- `actions`：處置動作
+- `source_ips`：來源 IP
+- `categories`：分類
+- `result_terms`：結果關鍵字
+
+工具沒有固定的查詢時間範圍或頁數上限。當單頁回傳少於 2,500 筆時停止分頁；匯出容量、磁碟剩餘空間及重複頁面等保護機制仍會生效。
+
+### 人工核准
+
+修改 Forward 或產生合成流量時，必須先預覽操作計畫，再由人員產生核准 Token：
+
+```bash
+python -m agent.approve_dns_lab_plan <plan_id>
+```
+
+Token 只綁定單一操作計畫，系統僅保存其 SHA-256；Token 會隨計畫到期，且不能重複使用。
+
+### 執行測試
+
+```bash
+python -m unittest -v tests.test_dns_lab_tools
+```
+
+### 安全邊界
+
+- 不提供任意 URL 存取或任意 Shell 指令功能。
+- 每個 DNS profile 都必須綁定 TLS 憑證指紋。
+- Forward 目標限制在設定允許的網段與連接埠內。
+- 不開放預設／根網域 Forward，也不提供全部刪除功能。
+- 合成流量只能使用種子生成內容，不得使用檔案內容或使用者資料作為 payload。
+- 敏感執行期輸出已由 `.gitignore` 排除。
+
+更完整的設定方式請參閱[部署文件](docs/DEPLOYMENT_V1.md)與 [V2 Profile／篩選功能更新](docs/V2_UPDATE.md)。
