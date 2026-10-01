@@ -14,12 +14,18 @@ No credentials, raw DNS logs, review data, models, or runtime artifacts belong i
 
 ```text
 lab_dns_get_forwarders
+lab_dns_get_context
+lab_dns_get_plan_status
 lab_dns_export_logs
 lab_dns_plan_forward_change
 lab_dns_apply_forward_plan
 lab_dns_plan_synthetic_traffic
 lab_dns_run_synthetic_traffic_plan
 ```
+
+Start every new or compacted conversation with `lab_dns_get_context`. It returns the active profiles, policy limits, known appliance limitations, recovery rules, and recent plans without exposing credentials. If work was interrupted after creating a plan, use `lab_dns_get_plan_status`; do not recreate the plan or guess API calls.
+
+All appliance errors carry a stable error code, retry guidance, and a next action. When an error says `retryable=false` or `action=stop_and_report`, the Agent must stop. It must never fall back to shell, curl, browser automation, alternate endpoints, HTTP methods, or guessed payload shapes.
 
 ## Installation
 
@@ -99,12 +105,18 @@ See [deployment documentation](docs/DEPLOYMENT_V1.md) and the [V2 profile/filter
 
 ```text
 lab_dns_get_forwarders
+lab_dns_get_context
+lab_dns_get_plan_status
 lab_dns_export_logs
 lab_dns_plan_forward_change
 lab_dns_apply_forward_plan
 lab_dns_plan_synthetic_traffic
 lab_dns_run_synthetic_traffic_plan
 ```
+
+每個新任務或對話壓縮後，都應先呼叫 `lab_dns_get_context`。它會在不暴露帳密的情況下重新提供可用 profile、安全限制、已知設備限制、恢復規則與最近計畫。若工作中斷於建立計畫之後，使用 `lab_dns_get_plan_status` 恢復狀態，不要重新建立計畫或猜測 API。
+
+設備錯誤會包含固定的 error code、是否可重試及下一步。若錯誤標示 `retryable=false` 或 `action=stop_and_report`，Agent 必須停止；不得改用 shell、curl、瀏覽器自動化、其他 endpoint、HTTP method 或猜測 payload 格式。
 
 ### 安裝方式
 

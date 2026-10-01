@@ -7,6 +7,11 @@
       "account": "REPLACE_WITH_ACCOUNT",
       "secret_file": "/absolute/path/to/lab-dns.secret",
       "allow_forward_writes": true,
+      "forward_write_status": "enabled",
+      "operator_notes": [
+        "Use lab_dns_get_forwarders before every change.",
+        "If a write returns retryable=false, stop and report it; never probe alternate API payloads."
+      ],
       "traffic_dns_server": "LAB_DNS_HOST",
       "traffic_dns_port": 53
     }
@@ -18,5 +23,9 @@
   "min_free_bytes": 10737418240,
   "max_traffic_queries": 500,
   "max_traffic_qps": 20,
-  "plan_ttl_seconds": 1800
+  "plan_ttl_seconds": 1800,
+  "known_limitations": [
+    "Raw exports are unlabeled staging and require separate governance.",
+    "The tool does not start dnscat2/iodine services or transfer real payloads."
+  ]
 }

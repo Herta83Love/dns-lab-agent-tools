@@ -20,6 +20,7 @@ import string
 import subprocess
 import time
 import urllib.parse
+import urllib.error
 import urllib.request
 import uuid
 from pathlib import Path
@@ -29,14 +30,42 @@ CONFIG_PATH = Path(__file__).with_name("dns_lab_config.json")
 AUDIT = ROOT / "audit.jsonl"
 PLANS = ROOT / "plans"
 EXPORTS = ROOT / "exports"
+TOOL_CONTRACT_VERSION = "3.0"
+
+AGENT_RECOVERY_RULES = [
+    "每次新任務或對話壓縮後，先呼叫 lab_dns_get_context；不要搜尋工具檔案或猜測 API。",
+    "只能透過 lab_dns_* 工具操作設備；不得改用 shell、curl、瀏覽器或自行重放 HTTP request。",
+    "帳號密碼由工具從 mode-0600 secret file 讀取；不得要求、顯示或放入參數、命令、文件與回覆。",
+    "寫入操作固定為 context → read current state → plan → human approval → apply → verify。",
+    "遇到 retryable=false 或 action=stop_and_report 時立即停止；不得改 method、endpoint 或 payload 猜測重試。",
+    "Log 匯出結果是 unlabeled staging，不得自動當成 strong training data。",
+]
+
+
+class DNSLabToolError(RuntimeError):
+    """Machine-readable, secret-free failure contract for the calling Agent."""
+
+    def __init__(self, code, message, *, retryable=False, next_action="stop_and_report", details=None):
+        self.payload = {
+            "error_code": code,
+            "message": message,
+            "retryable": bool(retryable),
+            "action": "retry_with_same_tool" if retryable else "stop_and_report",
+            "next_action": next_action,
+        }
+        if details:
+            self.payload["details"] = details
+        super().__init__(_canonical(self.payload))
 
 DNS_LAB_TOOL_DEFINITIONS = [
-    {"type":"function","function":{"name":"lab_dns_get_forwarders","description":"依具名 DNS profile 唯讀取得 forward 設定；不做變更。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","default":"lab-malicious"}}}}},
-    {"type":"function","function":{"name":"lab_dns_export_logs","description":"依具名 DNS profile 匯出任意有效歷史時間窗的配對 Proxy Log。支援伺服器端 domain/QTYPE/action/source/category/result 篩選，只回傳統計與雜湊。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","default":"lab-malicious"},"start_time":{"type":"string","description":"含時區 RFC3339"},"end_time":{"type":"string","description":"含時區 RFC3339"},"domains":{"type":"array","items":{"type":"string"},"maxItems":200},"exclude_domains":{"type":"boolean","default":False},"qtypes":{"type":"array","items":{"type":"string"},"maxItems":20},"actions":{"type":"array","items":{"type":"string","enum":["Allow","Block","Truncate","Translate"]},"maxItems":4},"source_ips":{"type":"array","items":{"type":"string"},"maxItems":100},"categories":{"type":"array","items":{"type":"string"},"maxItems":100},"result_terms":{"type":"array","items":{"type":"string"},"maxItems":100}},"required":["start_time","end_time"]}}},
-    {"type":"function","function":{"name":"lab_dns_plan_forward_change","description":"依具名 DNS profile 建立 forward 新增、修改或刪除的唯讀預覽計畫；不套用。正式套用需要人工核准 token。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","default":"lab-malicious"},"operation":{"type":"string","enum":["add","modify","delete"]},"domain":{"type":"string"},"primary":{"type":"string","description":"私有 IP，可附 :53 或 :5353"},"secondary":{"type":"string"},"recursive":{"type":"boolean","default":False},"enabled":{"type":"boolean","default":True},"uuid":{"type":"string","description":"modify/delete 必填，必須來自現況"}},"required":["operation","domain"]}}},
-    {"type":"function","function":{"name":"lab_dns_apply_forward_plan","description":"以人工提供的一次性 token 套用先前建立的 forward 計畫。不能直接傳任意設定。","parameters":{"type":"object","properties":{"plan_id":{"type":"string"},"approval_token":{"type":"string"}},"required":["plan_id","approval_token"]}}},
-    {"type":"function","function":{"name":"lab_dns_plan_synthetic_traffic","description":"依具名 DNS profile 建立受限的合成高熵或 DGA-like DNS 流量計畫；不執行、不讀取真實資料。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","default":"lab-malicious"},"mode":{"type":"string","enum":["high_entropy","dga_like","nxdomain_burst","synthetic_tunnel_shape"]},"domain_suffix":{"type":"string","description":"只允許核准的 .test/.example/.invalid 後綴"},"count":{"type":"integer","minimum":1,"maximum":500},"qps":{"type":"number","minimum":0.2,"maximum":20},"qtype":{"type":"string","enum":["A","AAAA","TXT","CNAME"]},"seed":{"type":"integer"}},"required":["mode","domain_suffix","count","qps","qtype","seed"]}}},
-    {"type":"function","function":{"name":"lab_dns_run_synthetic_traffic_plan","description":"以人工提供的一次性 token 執行先前核准的合成 DNS 流量計畫。","parameters":{"type":"object","properties":{"plan_id":{"type":"string"},"approval_token":{"type":"string"}},"required":["plan_id","approval_token"]}}},
+    {"type":"function","function":{"name":"lab_dns_get_context","description":"任務起點與壓縮後恢復工具。回傳可用 profile、安全限制、正確工作流程、已知設備限制及最近計畫；不連線設備、不回傳秘密。開始 DNS lab 工作前先呼叫此工具，禁止自行搜尋檔案或猜 API。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","description":"可選；指定後只回傳該 profile 的公開能力"}}}}},
+    {"type":"function","function":{"name":"lab_dns_get_plan_status","description":"恢復既有 forward/traffic 計畫狀態與下一步。只讀；不回傳 approval token。壓縮後若記得 plan_id，先用此工具，不要重建或重試寫入。","parameters":{"type":"object","properties":{"plan_id":{"type":"string","description":"可省略；省略時列出最近 10 個計畫"}}}}},
+    {"type":"function","function":{"name":"lab_dns_get_forwarders","description":"唯讀取得指定 DNS profile 的現行 forward 清單及 UUID。修改前必須先呼叫；不得以 shell/curl 重查或直接猜 UUID。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","default":"lab-malicious"}}}}},
+    {"type":"function","function":{"name":"lab_dns_export_logs","description":"唯讀匯出指定時間窗的 Proxy DNS Log 到受保護目錄，只回傳統計、路徑與 SHA-256。時間必須是含 UTC offset 的 RFC3339，end 至少早於現在 2 分鐘。domain 規則使用字串陣列；若回傳結構化不可重試錯誤，停止且不要自行呼叫 API。輸出固定是 lab_unlabeled_staging。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","default":"lab-malicious"},"start_time":{"type":"string","description":"含時區 RFC3339，例如 2026-10-01T14:00:00+08:00"},"end_time":{"type":"string","description":"含時區 RFC3339；至少早於現在 2 分鐘"},"domains":{"type":"array","items":{"type":"string"},"maxItems":200,"description":"完整 domain/suffix 字串陣列，不要傳 scalar"},"exclude_domains":{"type":"boolean","default":False},"qtypes":{"type":"array","items":{"type":"string"},"maxItems":20},"actions":{"type":"array","items":{"type":"string","enum":["Allow","Block","Truncate","Translate"]},"maxItems":4},"source_ips":{"type":"array","items":{"type":"string"},"maxItems":100},"categories":{"type":"array","items":{"type":"string"},"maxItems":100},"result_terms":{"type":"array","items":{"type":"string"},"maxItems":100}},"required":["start_time","end_time"]}}},
+    {"type":"function","function":{"name":"lab_dns_plan_forward_change","description":"只建立 forward add/modify/delete 預覽，不寫設備。固定流程：get_context → get_forwarders → plan → 人工核准 → apply。modify/delete 的 UUID 必須來自最新 get_forwarders。primary/secondary 必須是允許的私網 IP[:port]；允許值以 get_context 為準，不要猜。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","default":"lab-malicious"},"operation":{"type":"string","enum":["add","modify","delete"]},"domain":{"type":"string"},"primary":{"type":"string","description":"允許的私有 IP，可附核准 port；add/modify 必填"},"secondary":{"type":"string"},"recursive":{"type":"boolean","default":False},"enabled":{"type":"boolean","default":True},"uuid":{"type":"string","description":"modify/delete 必填，必須來自最新現況"}},"required":["operation","domain"]}}},
+    {"type":"function","function":{"name":"lab_dns_apply_forward_plan","description":"套用既有且人工核准的 forward 計畫。只接受 plan_id 與一次性 token；不得放入設備密碼。若錯誤標記 retryable=false，立即停止並原樣回報 error_code/next_action，禁止猜測其他 endpoint、HTTP method 或 payload。","parameters":{"type":"object","properties":{"plan_id":{"type":"string"},"approval_token":{"type":"string"}},"required":["plan_id","approval_token"]}}},
+    {"type":"function","function":{"name":"lab_dns_plan_synthetic_traffic","description":"建立受限的合成高熵/DGA-like DNS 流量預覽；不執行且不讀取檔案或真實 payload。domain_suffix、count、qps 與 port 限制以 lab_dns_get_context 為準，不要依聊天記憶猜測。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","default":"lab-malicious"},"mode":{"type":"string","enum":["high_entropy","dga_like","nxdomain_burst","synthetic_tunnel_shape"]},"domain_suffix":{"type":"string","description":"必須符合 get_context 回傳的 allowed_forward_suffixes"},"count":{"type":"integer","minimum":1,"maximum":500},"qps":{"type":"number","minimum":0.2,"maximum":20},"qtype":{"type":"string","enum":["A","AAAA","TXT","CNAME"]},"seed":{"type":"integer"}},"required":["mode","domain_suffix","count","qps","qtype","seed"]}}},
+    {"type":"function","function":{"name":"lab_dns_run_synthetic_traffic_plan","description":"執行既有且人工核准的合成流量計畫。只接受 plan_id 與一次性 token；遇到不可重試錯誤立即停止，不得改用 shell/dig 自行補跑。","parameters":{"type":"object","properties":{"plan_id":{"type":"string"},"approval_token":{"type":"string"}},"required":["plan_id","approval_token"]}}},
 ]
 
 def _config(): return json.loads(CONFIG_PATH.read_text())
@@ -54,6 +83,84 @@ def _audit(event, **fields):
     with AUDIT.open("a") as f:
         fcntl.flock(f,fcntl.LOCK_EX); f.write(_canonical(record)+"\n"); fcntl.flock(f,fcntl.LOCK_UN)
     os.chmod(AUDIT,0o600)
+
+
+def _public_profile(name, profile):
+    return {
+        "dns_profile": name,
+        "allow_forward_writes": bool(profile.get("allow_forward_writes", False)),
+        "forward_write_status": profile.get(
+            "forward_write_status",
+            "enabled" if profile.get("allow_forward_writes", False) else "disabled",
+        ),
+        "traffic_dns_server": profile.get("traffic_dns_server"),
+        "traffic_dns_port": profile.get("traffic_dns_port"),
+        "operator_notes": profile.get("operator_notes", []),
+    }
+
+
+def _plan_summary(path):
+    plan=json.loads(path.read_text())
+    approval=path.with_name(f"{plan['plan_id']}.approval.json")
+    expired=_now()>dt.datetime.fromisoformat(plan["expires_at"])
+    if plan.get("used"):
+        state="used"
+        next_action="No action: this one-time plan has already been consumed. Create a new plan if needed."
+    elif expired:
+        state="expired"
+        next_action="Create a new preview plan; expired plans must never be reused."
+    elif approval.is_file():
+        state="approved"
+        next_action="Ask the human operator for the one-time token, then call the matching apply/run tool once."
+    else:
+        state="awaiting_human_approval"
+        next_action=f"Human runs: python -m agent.approve_dns_lab_plan {plan['plan_id']}"
+    return {
+        "plan_id": plan["plan_id"],
+        "kind": plan["kind"],
+        "state": state,
+        "created_at": plan["created_at"],
+        "expires_at": plan["expires_at"],
+        "plan_sha256": plan["plan_sha256"],
+        "preview": plan["payload"],
+        "next_action": next_action,
+    }
+
+
+def _context(profile_name=None):
+    cfg=_config()
+    if profile_name:
+        name,profile=_profile(profile_name)
+        profiles=[_public_profile(name,profile)]
+    else:
+        profiles=[_public_profile(name,profile) for name,profile in cfg["profiles"].items()]
+    recent=[]
+    if PLANS.is_dir():
+        for path in sorted(PLANS.glob("*.json"),key=lambda item:item.stat().st_mtime,reverse=True):
+            if path.name.endswith(".approval.json") or path.name.endswith(".before.json"):
+                continue
+            try: recent.append(_plan_summary(path))
+            except (KeyError,ValueError,json.JSONDecodeError): continue
+            if len(recent)>=10: break
+    return {
+        "tool_contract_version": TOOL_CONTRACT_VERSION,
+        "default_profile": cfg["default_profile"],
+        "profiles": profiles,
+        "policy": {
+            "allowed_forward_suffixes": cfg["allowed_forward_suffixes"],
+            "allowed_forward_networks": cfg["allowed_forward_networks"],
+            "allowed_forward_ports": cfg["allowed_forward_ports"],
+            "max_export_bytes": cfg["max_export_bytes"],
+            "min_free_bytes": cfg["min_free_bytes"],
+            "max_traffic_queries": cfg["max_traffic_queries"],
+            "max_traffic_qps": cfg["max_traffic_qps"],
+            "plan_ttl_seconds": cfg["plan_ttl_seconds"],
+        },
+        "recovery_rules": AGENT_RECOVERY_RULES,
+        "known_limitations": cfg.get("known_limitations", []),
+        "recent_plans": recent,
+        "recommended_first_read": "Call lab_dns_get_forwarders for current device state before planning a change.",
+    }
 
 class _PinnedConnection(http.client.HTTPSConnection):
     def __init__(self,host,expected="",**kwargs):
@@ -139,10 +246,24 @@ def _mark_used(plan,path):
 
 def execute_dns_lab_tool(name,args):
     cfg=_config()
+    if name=="lab_dns_get_context":
+        result=_context(args.get("dns_profile")); _audit("context_read",dns_profile=args.get("dns_profile")); return result
+    if name=="lab_dns_get_plan_status":
+        plan_id=str(args.get("plan_id","")).strip()
+        if plan_id:
+            if not re.fullmatch(r"(?:forward|traffic)-[A-Za-z0-9T-]+",plan_id):
+                raise DNSLabToolError("INVALID_PLAN_ID","plan_id format is invalid",next_action="Call lab_dns_get_context to recover recent valid plan IDs.")
+            path=PLANS/f"{plan_id}.json"
+            if not path.is_file():
+                raise DNSLabToolError("PLAN_NOT_FOUND","No plan exists with that ID.",next_action="Call lab_dns_get_context to list recent plans; do not guess IDs.")
+            plans=[_plan_summary(path)]
+        else:
+            plans=_context().get("recent_plans",[])
+        _audit("plan_status_read",plan_id=plan_id or None,count=len(plans)); return {"plans":plans,"count":len(plans),"secrets_returned":False}
     profile_name=str(args.get("dns_profile",cfg["default_profile"]))
     _,profile=_profile(profile_name)
     if name=="lab_dns_get_forwarders":
-        values=[_sanitized_forward(x) for x in _forwarders(profile_name=profile_name)]; _audit("forward_read",dns_profile=profile_name,count=len(values)); return {"dns_profile":profile_name,"count":len(values),"forwarders":values}
+        values=[_sanitized_forward(x) for x in _forwarders(profile_name=profile_name)]; _audit("forward_read",dns_profile=profile_name,count=len(values)); return {"dns_profile":profile_name,"count":len(values),"forwarders":values,"next_action":"For changes, pass an exact current UUID to lab_dns_plan_forward_change. Do not call the appliance API directly."}
     if name=="lab_dns_export_logs":
         start=_parse_time(args["start_time"]); end=_parse_time(args["end_time"])
         if end<=start: raise ValueError("log window must be positive")
@@ -174,15 +295,19 @@ def execute_dns_lab_tool(name,args):
         manifest={"batch_id":batch,"dns_profile":profile_name,"start":start.isoformat(),"end":end.isoformat(),"filter":filters,"rows":total,"raw_bytes":total_bytes,"pages":pages,"partition":"lab_unlabeled_staging"}
         mp=out/"manifest.json"; mp.write_text(json.dumps(manifest,indent=2,sort_keys=True)+"\n"); os.chmod(mp,0o600)
         _audit("logs_exported",dns_profile=profile_name,batch_id=batch,rows=total,pages=len(pages),manifest_sha256=_sha(mp.read_bytes()))
-        return {"dns_profile":profile_name,"batch_id":batch,"rows":total,"pages":len(pages),"raw_bytes":total_bytes,"filter":filters,"manifest_sha256":_sha(mp.read_bytes()),"output":str(out)}
+        return {"dns_profile":profile_name,"batch_id":batch,"rows":total,"pages":len(pages),"raw_bytes":total_bytes,"filter":filters,"manifest_sha256":_sha(mp.read_bytes()),"output":str(out),"partition":"lab_unlabeled_staging","next_action":"Validate schema, ownership, deduplication, labels and leakage outside this tool before any Dataset intake. Never treat this export as strong-labeled data."}
     if name=="lab_dns_plan_forward_change":
         if not profile.get("allow_forward_writes",False): raise ValueError("forward writes are disabled for this DNS profile")
         operation=args["operation"]; domain=_domain(args["domain"],cfg); current=_forwarders(profile_name=profile_name); uuid_value=str(args.get("uuid","")).strip()
         existing=next((x for x in current if str(x.get("uuid"))==uuid_value),None)
         if operation in {"modify","delete"} and not existing: raise ValueError("uuid does not match a current forward entry")
+        if operation in {"add","modify"} and not str(args.get("primary","")).strip(): raise ValueError("primary is required for add/modify")
         payload={"dns_profile":profile_name,"operation":operation,"domain":domain,"uuid":uuid_value}
         if operation!="delete": payload.update({"primary":_split_target(args.get("primary",""),cfg),"secondary":_split_target(args.get("secondary",""),cfg),"recursive":bool(args.get("recursive",False)),"state":bool(args.get("enabled",True))})
-        return {**_write_plan("forward",payload,current),"preview":payload,"current_count":len(current)}
+        result={**_write_plan("forward",payload,current),"preview":payload,"current_count":len(current)}
+        result["next_action"]=f"Human reviews this immutable preview and runs: python -m agent.approve_dns_lab_plan {result['plan_id']}. Then call lab_dns_apply_forward_plan once with the returned token."
+        result["do_not"]= "Do not call curl/shell/browser APIs, change HTTP methods, or recreate the plan unless it expires or current state changes."
+        return result
     if name=="lab_dns_apply_forward_plan":
         plan,path,_=_consume_approval(args["plan_id"],args["approval_token"])
         if plan["kind"]!="forward": raise ValueError("not a forward plan")
@@ -195,14 +320,39 @@ def execute_dns_lab_tool(name,args):
         elif operation=="modify": body={"uuid":p["uuid"],"domain":p["domain"],"primary":p["primary"],"secondary":p["secondary"],"recursive":p["recursive"],"state":p["state"]}; method="PATCH"
         else: body={"list":[p["uuid"]]}; method="DELETE"
         backup=PLANS/f"{plan['plan_id']}.before.json"; backup.write_text(json.dumps(before,indent=2,sort_keys=True)+"\n"); os.chmod(backup,0o600)
-        status,_,raw=client.request("/webApi/recursor/forward",method,body); after=_forwarders(client); _mark_used(plan,path)
+        try:
+            status,_,raw=client.request("/webApi/recursor/forward",method,body)
+        except urllib.error.HTTPError as error:
+            raw_error=error.read(2048).decode("utf-8",errors="replace")
+            digest=_sha(raw_error.encode())
+            _audit("forward_apply_rejected",plan_id=plan["plan_id"],operation=operation,http_status=error.code,response_sha256=digest)
+            raise DNSLabToolError(
+                "FORWARD_API_REJECTED",
+                "The appliance rejected the approved forward write. The plan remains unused.",
+                retryable=False,
+                next_action="Stop. Report plan_id, HTTP status and response_sha256 to the human operator. Use the appliance GUI or vendor/admin remediation; do not probe alternate endpoints, methods or payload shapes.",
+                details={"plan_id":plan["plan_id"],"http_status":error.code,"response_sha256":digest},
+            ) from None
+        except (TimeoutError,urllib.error.URLError) as error:
+            _audit("forward_apply_transport_error",plan_id=plan["plan_id"],operation=operation,error_type=type(error).__name__)
+            raise DNSLabToolError(
+                "FORWARD_TRANSPORT_ERROR",
+                "The approved write did not receive a confirmed appliance response; outcome is unknown and the plan remains unused.",
+                retryable=False,
+                next_action="Stop and call lab_dns_get_forwarders to verify current state. Do not blindly retry the write.",
+                details={"plan_id":plan["plan_id"]},
+            ) from None
+        after=_forwarders(client); _mark_used(plan,path)
         _audit("forward_applied",plan_id=plan["plan_id"],operation=operation,http_status=status,before_sha256=_sha(_canonical(before).encode()),after_sha256=_sha(_canonical(after).encode()))
-        return {"applied":True,"plan_id":plan["plan_id"],"operation":operation,"http_status":status,"before_count":len(before),"after_count":len(after),"backup":str(backup)}
+        return {"applied":True,"plan_id":plan["plan_id"],"operation":operation,"http_status":status,"before_count":len(before),"after_count":len(after),"backup":str(backup),"next_action":"Verify the intended domain/target in lab_dns_get_forwarders, then record the after-state hash in the experiment manifest."}
     if name=="lab_dns_plan_synthetic_traffic":
         suffix=_domain(args["domain_suffix"],cfg); count=int(args["count"]); qps=float(args["qps"])
         if count>cfg["max_traffic_queries"] or qps>cfg["max_traffic_qps"]: raise ValueError("traffic limit exceeded")
         payload={"dns_profile":profile_name,"mode":args["mode"],"domain_suffix":suffix,"count":count,"qps":qps,"qtype":args["qtype"],"seed":int(args["seed"]),"server":profile["traffic_dns_server"],"port":profile["traffic_dns_port"]}
-        return {**_write_plan("traffic",payload,{}),"preview":payload,"synthetic_only":True}
+        result={**_write_plan("traffic",payload,{}),"preview":payload,"synthetic_only":True}
+        result["next_action"]=f"Human reviews this immutable preview and runs: python -m agent.approve_dns_lab_plan {result['plan_id']}. Then call lab_dns_run_synthetic_traffic_plan once with the returned token."
+        result["do_not"]="Do not replace this tool with shell/dig and do not use real files, credentials or user data as payload."
+        return result
     if name=="lab_dns_run_synthetic_traffic_plan":
         plan,path,_=_consume_approval(args["plan_id"],args["approval_token"])
         if plan["kind"]!="traffic": raise ValueError("not a traffic plan")
@@ -220,7 +370,7 @@ def execute_dns_lab_tool(name,args):
             target=(index+1)/p["qps"]; delay=target-(time.monotonic()-started)
             if delay>0: time.sleep(delay)
         _mark_used(plan,path); _audit("synthetic_traffic_completed",plan_id=plan["plan_id"],mode=p["mode"],count=p["count"],ok=ok,failed=failed,duration_seconds=round(time.monotonic()-started,3))
-        return {"completed":True,"plan_id":plan["plan_id"],"mode":p["mode"],"sent":p["count"],"ok":ok,"failed":failed,"synthetic_only":True}
+        return {"completed":True,"plan_id":plan["plan_id"],"mode":p["mode"],"sent":p["count"],"ok":ok,"failed":failed,"synthetic_only":True,"next_action":"Export the exact capture window with lab_dns_export_logs, then run governance checks. This result alone is not label evidence."}
     raise ValueError(f"unknown DNS lab tool: {name}")
 
 def approve_plan_cli(plan_id):
