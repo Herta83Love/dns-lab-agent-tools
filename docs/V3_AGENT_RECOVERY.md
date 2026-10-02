@@ -68,6 +68,14 @@ get_context
 }
 ```
 
+呼叫任何工具之前，若 function list 沒有 `lab_dns_get_context`，回報 `TOOLS_NOT_REGISTERED` 並停止。不要把這件事當成可以改讀原始碼、尋找設定檔或自行連線設備。
+
+設定或機密檔不可用時，工具回傳下列代碼，同樣必須停止：
+
+- `CONFIG_MISSING`：agent 主機上沒有受保護的 `dns_lab_config.json`。example 檔不能改名上線。
+- `CONFIG_INVALID`：設定檔不是合法 JSON，或 `workspace_root` 不是絕對路徑。
+- `SECRET_UNAVAILABLE`：機密檔不存在，或不是 POSIX `0600`／Windows 擁有者專用 ACL。不要索取密碼。
+
 `retryable=false` 或 `action=stop_and_report` 是硬性停止條件。Agent 不得：
 
 - 改用 POST／PUT／PATCH／DELETE 輪流嘗試；

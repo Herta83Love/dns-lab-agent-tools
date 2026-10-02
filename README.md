@@ -41,7 +41,7 @@ cp agent/approve_dns_lab_plan.py /path/to/agent/approve_dns_lab_plan.py
 cp agent/dns_lab_config.example.json /path/to/agent/dns_lab_config.json
 ```
 
-Edit the configuration and create its referenced secret file with mode `0600`.
+Edit the configuration and create its referenced secret file with mode `0600`. On Windows, install CPython 3.10 or newer (the Microsoft Store `python` alias is not an interpreter) and give that secret an owner-only NTFS ACL; POSIX mode bits are not a reliable privacy check there. The module loads without `fcntl`. An optional absolute `workspace_root` in the protected config selects the plan/export directory. None of this registers the tools: the agent runtime still has to load `DNS_LAB_TOOL_DEFINITIONS` and `execute_dns_lab_tool`.
 
 Register the tools in the existing registry:
 
@@ -136,7 +136,7 @@ cp agent/approve_dns_lab_plan.py /path/to/agent/approve_dns_lab_plan.py
 cp agent/dns_lab_config.example.json /path/to/agent/dns_lab_config.json
 ```
 
-編輯設定檔，並建立設定檔所引用的機密檔案；機密檔案權限應設為 `0600`。
+編輯設定檔，並建立設定檔所引用的機密檔案；機密檔案權限應設為 `0600`。在 Windows 上請安裝 CPython 3.10 以上（Microsoft Store 的 `python` 別名不是直譯器），並把機密檔設成擁有者專用的 NTFS ACL；那裡的 POSIX 權限位不可靠。模組不再在 import 時依賴 `fcntl`。受保護設定可加絕對路徑 `workspace_root` 來指定計畫與匯出目錄。這些都不會自動註冊工具，Agent runtime 仍須載入 `DNS_LAB_TOOL_DEFINITIONS` 與 `execute_dns_lab_tool`。
 
 在既有的工具註冊表中加入：
 

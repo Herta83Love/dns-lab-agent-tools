@@ -9,6 +9,14 @@ metadata:
 
 Use the registered `lab_dns_*` function tools for authorized DNS security-lab work. This skill supplies workflow and safety guidance; cloning the repository alone does not create device credentials or bypass runtime tool registration.
 
+## When the tools are not registered
+
+Check the function list before doing anything else. If `lab_dns_get_context` is not a callable tool, stop and report `error_code=TOOLS_NOT_REGISTERED`.
+
+Do not read `agent/dns_lab_tools.py`, search for `dns_lab_config.json`, secret files, or certificate pins, install Python, write a platform shim, or contact the appliance. Ask the human to register `DNS_LAB_TOOL_DEFINITIONS` and `execute_dns_lab_tool` on the agent runtime. `tool-manifest.json` records source hashes for review; the runtime does not refuse to import the module because a hash changed.
+
+If a registered tool returns `CONFIG_MISSING`, `CONFIG_INVALID`, `SECRET_UNAVAILABLE`, `retryable=false`, or `action=stop_and_report`, report `error_code` and `next_action`, then stop.
+
 ## Start or recover
 
 Call `lab_dns_get_context` first for every new DNS lab task and whenever conversation state was compacted or lost. Follow its current profiles, limits, known limitations, recovery rules, and recent plan states instead of relying on remembered values.

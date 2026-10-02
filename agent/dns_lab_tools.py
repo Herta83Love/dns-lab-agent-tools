@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 import csv
 import datetime as dt
-import fcntl
 import getpass
 import hashlib
 import http.client
@@ -15,6 +14,7 @@ import os
 import random
 import re
 import secrets
+import shutil
 import ssl
 import string
 import subprocess
@@ -25,7 +25,8 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-ROOT = Path.home() / "Herta-Chat" / "agent_workspace" / "dns_lab"
+DEFAULT_ROOT = Path.home() / "Herta-Chat" / "agent_workspace" / "dns_lab"
+ROOT = DEFAULT_ROOT
 CONFIG_PATH = Path(__file__).with_name("dns_lab_config.json")
 AUDIT = ROOT / "audit.jsonl"
 PLANS = ROOT / "plans"
@@ -57,8 +58,189 @@ class DNSLabToolError(RuntimeError):
             self.payload["details"] = details
         super().__init__(_canonical(self.payload))
 
+
+def _bind_workspace(cfg):
+    global ROOT, AUDIT, PLANS, EXPORTS
+    raw = cfg.get("workspace_root")
+    root = Path(raw).expanduser() if raw else DEFAULT_ROOT
+    if not root.is_absolute():
+        raise DNSLabToolError(
+            "CONFIG_INVALID",
+            "workspace_root must be an absolute path.",
+            next_action="Stop. Fix the protected dns_lab_config.json. Do not point workspace_root at the repository example or a secret file.",
+        )
+    ROOT = root
+    AUDIT = root / "audit.jsonl"
+    PLANS = root / "plans"
+    EXPORTS = root / "exports"
+
+
+def _config():
+    if not CONFIG_PATH.is_file():
+        raise DNSLabToolError(
+            "CONFIG_MISSING",
+            "dns_lab_config.json is not present beside the canonical module.",
+            next_action="Stop. Install the protected deployment config on the agent host. dns_lab_config.example.json is placeholders only and must not be renamed into service. Do not curl the appliance or guess credentials.",
+        )
+    try:
+        cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        raise DNSLabToolError(
+            "CONFIG_INVALID",
+            "dns_lab_config.json could not be read as JSON.",
+            next_action="Stop. Ask the human operator to repair the protected config. Do not print the file or replace it with the example.",
+        ) from None
+    if not isinstance(cfg, dict):
+        raise DNSLabToolError(
+            "CONFIG_INVALID",
+            "dns_lab_config.json must be a JSON object.",
+            next_action="Stop. Ask the human operator to repair the protected config.",
+        )
+    _bind_workspace(cfg)
+    return cfg
+
+
+def _lock_exclusive(file_obj):
+    if os.name == "nt":
+        import msvcrt
+        file_obj.seek(0)
+        msvcrt.locking(file_obj.fileno(), msvcrt.LK_LOCK, 1)
+        return
+    import fcntl
+    fcntl.flock(file_obj.fileno(), fcntl.LOCK_EX)
+
+
+def _unlock(file_obj):
+    if os.name == "nt":
+        import msvcrt
+        file_obj.seek(0)
+        msvcrt.locking(file_obj.fileno(), msvcrt.LK_UNLCK, 1)
+        return
+    import fcntl
+    fcntl.flock(file_obj.fileno(), fcntl.LOCK_UN)
+
+
+def _nt_owner_only(path):
+    """True when a Windows DACL grants read to the owner, SYSTEM, and Administrators only."""
+    import ctypes
+    from ctypes import wintypes
+
+    adv = ctypes.WinDLL("advapi32", use_last_error=True)
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    owner = ctypes.c_void_p()
+    dacl = ctypes.c_void_p()
+    descriptor = ctypes.c_void_p()
+    info = 0x1 | 0x4  # OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION
+    get_info = adv.GetNamedSecurityInfoW
+    get_info.argtypes = [
+        wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
+        ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(ctypes.c_void_p),
+        ctypes.POINTER(ctypes.c_void_p),
+    ]
+    get_info.restype = wintypes.DWORD
+    status = get_info(str(path), 1, info, ctypes.byref(owner), None, ctypes.byref(dacl), None, ctypes.byref(descriptor))
+    if status != 0 or not descriptor.value:
+        return False
+    try:
+        if not owner.value or not dacl.value:
+            return False
+        convert = adv.ConvertSidToStringSidW
+        convert.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_void_p)]
+        convert.restype = wintypes.BOOL
+        local_free = kernel.LocalFree
+        local_free.argtypes = [ctypes.c_void_p]
+        local_free.restype = ctypes.c_void_p
+
+        def sid_text(sid_ptr):
+            out = ctypes.c_void_p()
+            if not convert(sid_ptr, ctypes.byref(out)) or not out.value:
+                return ""
+            try:
+                return ctypes.cast(out, ctypes.c_wchar_p).value or ""
+            finally:
+                local_free(out)
+
+        owner_sid = sid_text(owner)
+        if not owner_sid:
+            return False
+        allowed = {owner_sid, "S-1-5-18", "S-1-5-32-544"}
+
+        class ACL(ctypes.Structure):
+            _fields_ = [
+                ("AclRevision", ctypes.c_ubyte), ("Sbz1", ctypes.c_ubyte),
+                ("AclSize", wintypes.WORD), ("AceCount", wintypes.WORD), ("Sbz2", wintypes.WORD),
+            ]
+
+        class ACE_HEADER(ctypes.Structure):
+            _fields_ = [("AceType", ctypes.c_ubyte), ("AceFlags", ctypes.c_ubyte), ("AceSize", wintypes.WORD)]
+
+        acl = ctypes.cast(dacl, ctypes.POINTER(ACL)).contents
+        get_ace = adv.GetAce
+        get_ace.argtypes = [ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(ctypes.c_void_p)]
+        get_ace.restype = wintypes.BOOL
+        read_mask = 0x1 | 0x80000000 | 0x10000000  # FILE_READ_DATA | GENERIC_READ | GENERIC_ALL
+        for index in range(acl.AceCount):
+            ace = ctypes.c_void_p()
+            if not get_ace(dacl, index, ctypes.byref(ace)) or not ace.value:
+                return False
+            header = ctypes.cast(ace, ctypes.POINTER(ACE_HEADER)).contents
+            if header.AceType != 0:  # ACCESS_ALLOWED_ACE_TYPE
+                continue
+            mask = ctypes.cast(ace.value + ctypes.sizeof(ACE_HEADER), ctypes.POINTER(wintypes.DWORD)).contents.value
+            if (mask & read_mask) == 0:
+                continue
+            sid = sid_text(ace.value + ctypes.sizeof(ACE_HEADER) + ctypes.sizeof(wintypes.DWORD))
+            if sid not in allowed:
+                return False
+        return True
+    finally:
+        kernel.LocalFree(descriptor)
+
+
+def _is_windows():
+    return os.name == "nt"
+
+
+def _read_private_secret(path):
+    secret = Path(path)
+    if not secret.is_file():
+        private = False
+    elif _is_windows():
+        private = _nt_owner_only(secret)
+    else:
+        private = (secret.stat().st_mode & 0o077) == 0
+    if not private:
+        raise DNSLabToolError(
+            "SECRET_UNAVAILABLE",
+            "lab DNS secret missing or not private to the owner",
+            next_action="Stop. Ask the human operator to install the secret on the agent host as a POSIX mode-0600 file or a Windows owner-only ACL. Do not request, paste, or invent the password.",
+        )
+    return secret.read_text(encoding="utf-8").rstrip("\r\n")
+
+
+def _free_bytes(path):
+    return shutil.disk_usage(path).free
+
+
+def _dig_executable():
+    if os.name != "nt":
+        path = Path("/usr/bin/dig")
+        if path.is_file():
+            return str(path)
+    else:
+        found = shutil.which("dig")
+        if found and Path(found).name.lower() == "dig.exe":
+            return found
+    raise DNSLabToolError(
+        "DIG_UNAVAILABLE",
+        "The dig executable required for synthetic traffic is not available.",
+        next_action="Stop. Do not substitute shell, nslookup, curl, or another resolver.",
+    )
+
+
 DNS_LAB_TOOL_DEFINITIONS = [
-    {"type":"function","function":{"name":"lab_dns_get_context","description":"任務起點與壓縮後恢復工具。回傳可用 profile、安全限制、正確工作流程、已知設備限制及最近計畫；不連線設備、不回傳秘密。開始 DNS lab 工作前先呼叫此工具，禁止自行搜尋檔案或猜 API。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","description":"可選；指定後只回傳該 profile 的公開能力"}}}}},
+    {"type":"function","function":{"name":"lab_dns_get_context","description":"任務起點與壓縮後恢復工具。回傳可用 profile、安全限制、正確工作流程、已知設備限制及最近計畫；不連線設備、不回傳秘密。開始 DNS lab 工作前先呼叫此工具，禁止自行搜尋檔案或猜 API。若 error_code 是 CONFIG_MISSING、CONFIG_INVALID 或 SECRET_UNAVAILABLE，停止並原樣回報，不要搜尋設定檔、機密檔或改走 shell/curl。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","description":"可選；指定後只回傳該 profile 的公開能力"}}}}},
     {"type":"function","function":{"name":"lab_dns_get_plan_status","description":"恢復既有 forward/traffic 計畫狀態與下一步。只讀；不回傳 approval token。壓縮後若記得 plan_id，先用此工具，不要重建或重試寫入。","parameters":{"type":"object","properties":{"plan_id":{"type":"string","description":"可省略；省略時列出最近 10 個計畫"}}}}},
     {"type":"function","function":{"name":"lab_dns_get_forwarders","description":"唯讀取得指定 DNS profile 的現行 forward 清單及 UUID。修改前必須先呼叫；不得以 shell/curl 重查或直接猜 UUID。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","default":"lab-malicious"}}}}},
     {"type":"function","function":{"name":"lab_dns_export_logs","description":"唯讀匯出指定時間窗的 Proxy DNS Log 到受保護目錄，只回傳統計、路徑與 SHA-256。時間必須是含 UTC offset 的 RFC3339，end 至少早於現在 2 分鐘。domain 規則使用字串陣列；若回傳結構化不可重試錯誤，停止且不要自行呼叫 API。輸出固定是 lab_unlabeled_staging。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","default":"lab-malicious"},"start_time":{"type":"string","description":"含時區 RFC3339，例如 2026-10-01T14:00:00+08:00"},"end_time":{"type":"string","description":"含時區 RFC3339；至少早於現在 2 分鐘"},"domains":{"type":"array","items":{"type":"string"},"maxItems":200,"description":"完整 domain/suffix 字串陣列，不要傳 scalar"},"exclude_domains":{"type":"boolean","default":False},"qtypes":{"type":"array","items":{"type":"string"},"maxItems":20},"actions":{"type":"array","items":{"type":"string","enum":["Allow","Block","Truncate","Translate"]},"maxItems":4},"source_ips":{"type":"array","items":{"type":"string"},"maxItems":100},"categories":{"type":"array","items":{"type":"string"},"maxItems":100},"result_terms":{"type":"array","items":{"type":"string"},"maxItems":100}},"required":["start_time","end_time"]}}},
@@ -68,7 +250,6 @@ DNS_LAB_TOOL_DEFINITIONS = [
     {"type":"function","function":{"name":"lab_dns_run_synthetic_traffic_plan","description":"執行既有且人工核准的合成流量計畫。只接受 plan_id 與一次性 token；遇到不可重試錯誤立即停止，不得改用 shell/dig 自行補跑。","parameters":{"type":"object","properties":{"plan_id":{"type":"string"},"approval_token":{"type":"string"}},"required":["plan_id","approval_token"]}}},
 ]
 
-def _config(): return json.loads(CONFIG_PATH.read_text())
 def _profile(name=None):
     cfg=_config(); name=name or cfg["default_profile"]
     if name not in cfg["profiles"]: raise ValueError("unknown DNS profile")
@@ -80,8 +261,23 @@ def _secure_dirs():
     for path in (ROOT,PLANS,EXPORTS): path.mkdir(parents=True,exist_ok=True); os.chmod(path,0o700)
 def _audit(event, **fields):
     _secure_dirs(); record={"at":_now().isoformat(),"event":event,**fields}
-    with AUDIT.open("a") as f:
-        fcntl.flock(f,fcntl.LOCK_EX); f.write(_canonical(record)+"\n"); fcntl.flock(f,fcntl.LOCK_UN)
+    line=_canonical(record)+"\n"
+    if os.name=="nt":
+        lock_path=AUDIT.with_name(AUDIT.name+".lock")
+        with lock_path.open("a+b") as lockf:
+            lockf.seek(0)
+            if lockf.read(1)==b"":
+                lockf.seek(0); lockf.write(b"\0"); lockf.flush()
+            lockf.seek(0); _lock_exclusive(lockf)
+            try:
+                with AUDIT.open("a",encoding="utf-8",newline="\n") as handle: handle.write(line)
+            finally: _unlock(lockf)
+        os.chmod(lock_path,0o600)
+    else:
+        with AUDIT.open("a",encoding="utf-8",newline="\n") as handle:
+            _lock_exclusive(handle)
+            try: handle.write(line)
+            finally: _unlock(handle)
     os.chmod(AUDIT,0o600)
 
 
@@ -180,9 +376,7 @@ class _PinnedHandler(urllib.request.HTTPSHandler):
 class LabClient:
     def __init__(self,profile_name=None):
         self.profile_name,self.cfg=_profile(profile_name)
-        secret=Path(self.cfg["secret_file"])
-        if not secret.is_file() or secret.stat().st_mode & 0o077: raise RuntimeError("lab DNS secret missing or not mode 0600")
-        self.password=secret.read_text().rstrip("\r\n")
+        self.password=_read_private_secret(self.cfg["secret_file"])
         self.cookies=http.cookiejar.CookieJar()
         self.opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cookies),_PinnedHandler(self.cfg["certificate_sha256"]))
         self.login()
@@ -244,7 +438,53 @@ def _consume_approval(plan_id,token):
 def _mark_used(plan,path):
     plan["used"]=True; plan["used_at"]=_now().isoformat(); path.write_text(json.dumps(plan,indent=2,sort_keys=True)+"\n"); os.chmod(path,0o600)
 
-def execute_dns_lab_tool(name,args):
+def execute_dns_lab_tool(name, args=None):
+    try:
+        return _execute_dns_lab_tool(name, args or {})
+    except DNSLabToolError:
+        raise
+    except ValueError as error:
+        raise DNSLabToolError(
+            "INVALID_ARGUMENT",
+            str(error),
+            next_action="Stop and correct the arguments from lab_dns_get_context. Do not guess endpoints, methods, or payload shapes.",
+        ) from None
+    except urllib.error.HTTPError as error:
+        raise DNSLabToolError(
+            "HTTP_ERROR",
+            "The appliance returned an HTTP error.",
+            next_action="Stop and report this error. Do not switch to curl or another endpoint.",
+            details={"http_status": error.code},
+        ) from None
+    except (TimeoutError, urllib.error.URLError):
+        raise DNSLabToolError(
+            "TRANSPORT_ERROR",
+            "The appliance request failed before a confirmed response.",
+            next_action="Stop and report this error. Do not switch to curl, a browser, or another endpoint.",
+            details={"error_type": "transport"},
+        ) from None
+    except FileNotFoundError:
+        raise DNSLabToolError(
+            "NOT_FOUND",
+            "A required local file is missing.",
+            next_action="Stop and report this error. Do not search the workspace for secrets or credentials.",
+        ) from None
+    except RuntimeError as error:
+        message=str(error)
+        lowered=message.lower()
+        if "secret" in lowered or "password" in lowered:
+            raise DNSLabToolError(
+                "SECRET_UNAVAILABLE",
+                "lab DNS secret or login material is unavailable",
+                next_action="Stop. Do not request, paste, or invent passwords, cookies, or CSRF tokens.",
+            ) from None
+        raise DNSLabToolError(
+            "RUNTIME_REJECTED",
+            message,
+            next_action="Stop and report error_code and next_action. Do not vary the endpoint, method, or payload.",
+        ) from None
+
+def _execute_dns_lab_tool(name, args):
     cfg=_config()
     if name=="lab_dns_get_context":
         result=_context(args.get("dns_profile")); _audit("context_read",dns_profile=args.get("dns_profile")); return result
@@ -287,7 +527,7 @@ def execute_dns_lab_tool(name,args):
             page_sha=_sha(raw)
             if page_sha in seen_page_hashes: raise RuntimeError("repeated page detected during unbounded pagination")
             if total_bytes+len(raw)>cfg["max_export_bytes"]: raise RuntimeError("export byte guard triggered")
-            if os.statvfs(out).f_bavail*os.statvfs(out).f_frsize-len(raw)<cfg["min_free_bytes"]: raise RuntimeError("minimum free-space guard triggered")
+            if _free_bytes(out)-len(raw)<cfg["min_free_bytes"]: raise RuntimeError("minimum free-space guard triggered")
             path=out/f"page-{page:06d}.json"; path.write_bytes(raw); os.chmod(path,0o600)
             pages.append({"page":page,"rows":len(rows),"sha256":page_sha}); seen_page_hashes.add(page_sha); total+=len(rows); total_bytes+=len(raw)
             if len(rows)<2500: break
@@ -357,7 +597,7 @@ def execute_dns_lab_tool(name,args):
         plan,path,_=_consume_approval(args["plan_id"],args["approval_token"])
         if plan["kind"]!="traffic": raise ValueError("not a traffic plan")
         p=plan["payload"]; rng=random.Random(p["seed"]); alphabet=string.ascii_lowercase+string.digits
-        started=time.monotonic(); ok=0; failed=0
+        dig=_dig_executable(); started=time.monotonic(); ok=0; failed=0
         for index in range(p["count"]):
             if p["mode"]=="high_entropy": label="".join(rng.choice(alphabet) for _ in range(40))
             elif p["mode"]=="dga_like": label="".join(rng.choice(string.ascii_lowercase) for _ in range(rng.randint(12,24)))
@@ -365,13 +605,13 @@ def execute_dns_lab_tool(name,args):
             else:
                 raw=hashlib.sha256(f"synthetic:{p['seed']}:{index}".encode()).digest(); label=base64.b32encode(raw).decode().lower().rstrip("=")[:50]
             qname=f"{label}.{p['domain_suffix']}"
-            result=subprocess.run(["/usr/bin/dig",f"@{p['server']}","-p",str(p["port"]),qname,p["qtype"],"+tries=1","+time=2","+short"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=4)
+            result=subprocess.run([dig,f"@{p['server']}","-p",str(p["port"]),qname,p["qtype"],"+tries=1","+time=2","+short"],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=4)
             ok += result.returncode==0; failed += result.returncode!=0
             target=(index+1)/p["qps"]; delay=target-(time.monotonic()-started)
             if delay>0: time.sleep(delay)
         _mark_used(plan,path); _audit("synthetic_traffic_completed",plan_id=plan["plan_id"],mode=p["mode"],count=p["count"],ok=ok,failed=failed,duration_seconds=round(time.monotonic()-started,3))
         return {"completed":True,"plan_id":plan["plan_id"],"mode":p["mode"],"sent":p["count"],"ok":ok,"failed":failed,"synthetic_only":True,"next_action":"Export the exact capture window with lab_dns_export_logs, then run governance checks. This result alone is not label evidence."}
-    raise ValueError(f"unknown DNS lab tool: {name}")
+    raise DNSLabToolError("UNKNOWN_TOOL","Unknown DNS lab tool.",next_action="Call only the registered lab_dns_* tools. Start with lab_dns_get_context.")
 
 def approve_plan_cli(plan_id):
     _secure_dirs(); path=PLANS/f"{plan_id}.json"
