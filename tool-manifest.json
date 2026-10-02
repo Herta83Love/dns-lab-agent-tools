@@ -1,0 +1,31 @@
+{
+  "project": "dns-lab-agent-tools",
+  "contract_version": "3.0",
+  "release_date": "2026-10-02",
+  "entrypoint": "agent.dns_lab_tools",
+  "definitions_symbol": "DNS_LAB_TOOL_DEFINITIONS",
+  "executor_symbol": "execute_dns_lab_tool",
+  "tools": [
+    "lab_dns_get_context",
+    "lab_dns_get_plan_status",
+    "lab_dns_get_forwarders",
+    "lab_dns_export_logs",
+    "lab_dns_plan_forward_change",
+    "lab_dns_apply_forward_plan",
+    "lab_dns_plan_synthetic_traffic",
+    "lab_dns_run_synthetic_traffic_plan"
+  ],
+  "required_first_tool": "lab_dns_get_context",
+  "forbidden_fallbacks": [
+    "shell",
+    "curl",
+    "browser_automation",
+    "direct_http",
+    "legacy_forward_mgr"
+  ],
+  "source_sha256": {
+    "agent/dns_lab_tools.py": "46c5d176eb188ff940c823a2d8bf4e480dec2c91d0f6ff1ef11bb2bcc2cc130a",
+    "agent/approve_dns_lab_plan.py": "ec368a5bfc5ab1ec3fd93e24c51dd50ba4e098095333596afa165687965c0648",
+    "agent/dns_lab_config.example.json": "b1bb18f6e56c8da14235aea55e34d80e19ce8a573bd96d23f908fda9613dce88"
+  }
+}

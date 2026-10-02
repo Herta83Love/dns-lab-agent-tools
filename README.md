@@ -2,6 +2,8 @@
 
 [English](#english) | [繁體中文](#繁體中文)
 
+Chatbox integration: see [CHATBOX_AGENT_INSTRUCTIONS.md](CHATBOX_AGENT_INSTRUCTIONS.md). Machine-readable release information is in [tool-manifest.json](tool-manifest.json).
+
 ## English
 
 Guarded function tools for a VLLM/OpenAI-compatible Agent operating controlled DNS security laboratories.
@@ -96,6 +98,8 @@ See [deployment documentation](docs/DEPLOYMENT_V1.md) and the [V2 profile/filter
 ## 繁體中文
 
 這是一套提供給 VLLM／OpenAI 相容 Agent 使用的受控函式工具，專門用於經授權的 DNS 資安實驗環境。
+
+Chatbox 從 Git 取得本專案時，請先讀取 [CHATBOX_AGENT_INSTRUCTIONS.md](CHATBOX_AGENT_INSTRUCTIONS.md)；機器可讀版本資訊位於 [tool-manifest.json](tool-manifest.json)。
 
 本專案支援讀取 DNS Forward 設定、匯出已配對的 Proxy DNS Log、經人工核准後調整 Forward，以及產生有範圍限制的高熵／類 DGA 合成流量。安全機制包括 TLS 憑證指紋綁定、不可變更的操作計畫、一次性人工核准、稽核紀錄，以及變更前狀態備份。
 
