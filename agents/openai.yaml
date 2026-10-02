@@ -1,0 +1,7 @@
+interface:
+  display_name: "DNS Lab Agent Tools"
+  short_description: "Guarded DNS lab logs, forwarding, and traffic"
+  default_prompt: "Use $dns-lab-agent-tools to recover the current DNS lab context and perform the requested operation safely."
+
+policy:
+  allow_implicit_invocation: true

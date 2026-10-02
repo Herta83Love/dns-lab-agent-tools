@@ -4,6 +4,8 @@
 
 Chatbox integration: see [CHATBOX_AGENT_INSTRUCTIONS.md](CHATBOX_AGENT_INSTRUCTIONS.md). Machine-readable release information is in [tool-manifest.json](tool-manifest.json).
 
+This repository is installable as a Chatbox/Codex Skill from its GitHub URL. Skill discovery uses the root [SKILL.md](SKILL.md), with UI metadata in [agents/openai.yaml](agents/openai.yaml).
+
 ## English
 
 Guarded function tools for a VLLM/OpenAI-compatible Agent operating controlled DNS security laboratories.
@@ -100,6 +102,8 @@ See [deployment documentation](docs/DEPLOYMENT_V1.md) and the [V2 profile/filter
 這是一套提供給 VLLM／OpenAI 相容 Agent 使用的受控函式工具，專門用於經授權的 DNS 資安實驗環境。
 
 Chatbox 從 Git 取得本專案時，請先讀取 [CHATBOX_AGENT_INSTRUCTIONS.md](CHATBOX_AGENT_INSTRUCTIONS.md)；機器可讀版本資訊位於 [tool-manifest.json](tool-manifest.json)。
+
+本 repository 現在可直接透過 GitHub URL 安裝為 Chatbox／Codex Skill。Skill 掃描入口是根目錄的 [SKILL.md](SKILL.md)，介面資訊位於 [agents/openai.yaml](agents/openai.yaml)。
 
 本專案支援讀取 DNS Forward 設定、匯出已配對的 Proxy DNS Log、經人工核准後調整 Forward，以及產生有範圍限制的高熵／類 DGA 合成流量。安全機制包括 TLS 憑證指紋綁定、不可變更的操作計畫、一次性人工核准、稽核紀錄，以及變更前狀態備份。
 
