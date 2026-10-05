@@ -1,0 +1,31 @@
+{
+  "base_url": "http://172.16.30.209:1606",
+  "verified_at": "2026-10-05T07:13:32.078799+00:00",
+  "software_version": null,
+  "api_base_path": "/webApi",
+  "read_only": true,
+  "authentication": {
+    "login_endpoint": "/login",
+    "method": "POST",
+    "provider": "existing_dns_config_account_and_0600_text_password",
+    "account_environment": null
+  },
+  "tls": {
+    "mode": "http_no_tls",
+    "source_name": null
+  },
+  "tests": [],
+  "completeness_verified": false,
+  "device_writes": 0,
+  "error": {
+    "class": "HTTPError",
+    "message": "[MASKED]",
+    "http_status": 400
+  },
+  "protocol_mismatch": {
+    "http_status": 400,
+    "https_required": true,
+    "https_tested": false,
+    "requires_explicit_protocol_authorization": true
+  }
+}

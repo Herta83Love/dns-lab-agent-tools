@@ -5,13 +5,14 @@ from .core import Client, Error, Logs, LAB, NORMAL, VERSION, canonical, clean, f
 
 COMMON={'profile':{'type':'string'},'target':{'type':'string','description':'Must exactly match the configured base URL.'}}
 FILTERS={k:{'type':'string'} for k in ('start_time','end_time','domain','qname','qtype','client_ip','resolver_ip','rcode','action','category','tunneling','garbled')}
+LIMITS={'type':'object','properties':{k:{'type':'number' if k=='max_seconds' else 'integer','exclusiveMinimum':0} for k in ('page_size','max_pages','max_records','max_seconds','max_bytes')},'additionalProperties':False}
 SPECS={
  'dns_authenticate':({},[]),
  'dns_logout':({},[]),
  'dns_health_check':({},[]),
  'dns_discover_capabilities':({},[]),
- 'dns_query_logs':({'filters':{'type':'object','properties':FILTERS,'additionalProperties':False,'required':['start_time','end_time']},'limits':{'type':'object'},'checkpoint':{'type':'object'}},['filters']),
- 'dns_export_logs':({'filters':{'type':'object','properties':FILTERS,'required':['start_time','end_time'],'additionalProperties':False},'limits':{'type':'object'},'checkpoint':{'type':'object'},'directory':{'type':'string'},'formats':{'type':'array','items':{'enum':['json','jsonl','csv']},'default':['json','jsonl','csv']}},['filters','directory']),
+ 'dns_query_logs':({'filters':{'type':'object','properties':FILTERS,'additionalProperties':False,'required':['start_time','end_time']},'limits':LIMITS,'checkpoint':{'type':'object'}},['filters']),
+ 'dns_export_logs':({'filters':{'type':'object','properties':FILTERS,'required':['start_time','end_time'],'additionalProperties':False},'limits':LIMITS,'checkpoint':{'type':'object'},'directory':{'type':'string'},'formats':{'type':'array','items':{'enum':['json','jsonl','csv']},'default':['json','jsonl','csv']}},['filters','directory']),
  'dns_get_forward_config':({},[]),
  'dns_plan_forward_change':({'desired':{'type':'array','items':{'type':'object'}}},['desired']),
  'dns_apply_forward_change':({'plan_id':{'type':'string'},'approved_sha256':{'type':'string'},'dry_run':{'type':'boolean','default':True}},['plan_id']),

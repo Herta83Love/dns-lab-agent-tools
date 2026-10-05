@@ -1,0 +1,80 @@
+{
+  "verified_at": "2026-10-05T07:21:37.477162+00:00",
+  "validation_host": "jackie_tsai@192.168.10.32",
+  "unit_and_security_tests": 45,
+  "secret_scan": "PASS pattern-based and remote credential-value comparison",
+  "capability_permissions": {
+    "directory": "0700",
+    "files": "0600"
+  },
+  "source_and_output_sha256": {
+    "scripts/validate_devices_readonly.py": "f22341cd12028b652ed1c41bf5f63747b068f93a680e9e09e0560dbea2e2fdd7",
+    "scripts/validate_normal_tools.py": "36efacc3a58c71ceb2256c52a6120f99bc3066a85a25915c0c7618480335026c",
+    "src/dns_security_api/core.py": "28e5d109cd6985a5c1ac04082b84cb65b59e27b83358240ce010f54f38814ebe",
+    "src/dns_security_api/tools.py": "985c0dd684c7be0df525e6b67489094f71ede66797f716fd31972992021e4384",
+    "docs/evidence/normal-dns-capability.json": "2ea03a433b4d3a2ec0a02a25736f5f661633a4d569ea83801e124d9f3a8b82a4",
+    "docs/evidence/lab-dns-capability.json": "eb9a549d02ab02a066bc7279562ac0f881de0f435d308b5237846975bd207b25"
+  },
+  "normal_integration": [
+    {
+      "test": "new_tool_login",
+      "ok": true,
+      "error": null
+    },
+    {
+      "test": "new_tool_pagination",
+      "ok": true,
+      "pages": 2,
+      "rows": 3480,
+      "complete": false,
+      "exceeds_2500": true
+    },
+    {
+      "test": "domain",
+      "ok": true,
+      "filter_mode": "client",
+      "selected_rows": 0,
+      "matches_baseline_subset": true,
+      "complete": false,
+      "query_values": "[MASKED]"
+    },
+    {
+      "test": "qtype",
+      "ok": true,
+      "filter_mode": "client",
+      "selected_rows": 2968,
+      "matches_baseline_subset": true,
+      "complete": false,
+      "query_values": "[MASKED]"
+    },
+    {
+      "test": "rcode",
+      "ok": true,
+      "filter_mode": "client",
+      "selected_rows": 3229,
+      "matches_baseline_subset": true,
+      "complete": false,
+      "query_values": "[MASKED]"
+    },
+    {
+      "test": "qname",
+      "ok": true,
+      "filter_mode": "client",
+      "selected_rows": 20,
+      "matches_baseline_subset": true,
+      "complete": false,
+      "query_values": "[MASKED]"
+    }
+  ],
+  "lab_status": "HTTP 400: HTTPS required; protocol switch awaiting explicit authorization",
+  "device_configuration_writes": 0,
+  "raw_log_saved": false,
+  "excluded_environment_files_read": false,
+  "unknowns": [
+    "server exact-domain/qtype/rcode filter semantics",
+    "snapshot and total-count completeness",
+    "device version",
+    "lab authenticated API behavior"
+  ],
+  "capability_state_directory": "/home/jackie_tsai/.local/state/dns-lab-agent-tools/capabilities/"
+}

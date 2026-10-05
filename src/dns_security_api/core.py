@@ -3,6 +3,7 @@ import csv
 import datetime as dt
 import hashlib
 import http.cookiejar
+import http.client
 import json
 import os
 from pathlib import Path
@@ -49,8 +50,29 @@ def timestamp(value):
     return t
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def __init__(self, base=None): self.base=base
     def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if self.base and urllib.parse.urlsplit(newurl)[:2]==urllib.parse.urlsplit(self.base)[:2]:
+            return super().redirect_request(req,fp,code,msg,headers,newurl)
         fail('REDIRECT_REQUIRES_PROFILE')
+
+class PinnedHandler(urllib.request.HTTPSHandler):
+    def __init__(self, fingerprint):
+        super().__init__(); self.fingerprint=fingerprint.lower()
+        if not re.fullmatch('[0-9a-f]{64}',self.fingerprint): fail('TLS_PIN_INVALID')
+    def https_open(self, request):
+        expected=self.fingerprint
+        class Connection(http.client.HTTPSConnection):
+            def __init__(self,host,**kwargs):
+                ctx=ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE
+                kwargs.pop('context',None)
+                super().__init__(host,context=ctx,**kwargs)
+            def connect(self):
+                super().connect()
+                if sha(self.sock.getpeercert(binary_form=True))!=expected:
+                    self.close(); raise ssl.SSLError('Certificate pin mismatch')
+        return self.do_open(Connection,request)
 
 class Client:
     def __init__(self, profile):
@@ -64,7 +86,9 @@ class Client:
         try: context = ssl.create_default_context(cafile=tls.get('ca_file'))
         except Exception: fail('TLS_CONFIG')
         self.cookies = http.cookiejar.CookieJar()
-        self.opener = urllib.request.build_opener(NoRedirect(), urllib.request.HTTPCookieProcessor(self.cookies), urllib.request.HTTPSHandler(context=context))
+        handler=PinnedHandler(tls['certificate_sha256']) if tls.get('certificate_sha256') else urllib.request.HTTPSHandler(context=context)
+        redirects=NoRedirect(self.base if profile.get('auth',{}).get('allow_same_origin_redirects') else None)
+        self.opener = urllib.request.build_opener(redirects, urllib.request.HTTPCookieProcessor(self.cookies), handler)
         self.token = None
         self.authenticated = False
         self.events = []
@@ -100,7 +124,11 @@ class Client:
         if a.get('secret_file'):
             p = Path(a['secret_file'])
             if p.is_symlink() or not p.is_file() or p.stat().st_mode & 0o777 != 0o600: fail('SECRET_PERMISSIONS')
-            try: credentials = json.loads(p.read_text())
+            try:
+                if a.get('secret_file_format')=='password_text':
+                    credentials={k:os.environ.get(v) for k,v in a.get('env',{}).items()}
+                    credentials['password']=p.read_text().rstrip('\r\n')
+                else: credentials = json.loads(p.read_text())
             except Exception: fail('SECRET_FORMAT')
         else:
             credentials = {k:os.environ.get(v) for k,v in a.get('env',{}).items()}
@@ -119,6 +147,8 @@ class Client:
             except Error as e:
                 if e.code == 'AUTH_EXPIRED': fail('AUTH_FAILED')
                 raise
+            if a.get('success_cookie') and not any(c.name==a['success_cookie'] for c in self.cookies): fail('AUTH_FAILED')
+            if a.get('failure_body_marker') and a['failure_body_marker'].encode() in raw: fail('AUTH_FAILED')
             if a.get('token_field'):
                 try: self.token=json.loads(raw)[a['token_field']]
                 except Exception: fail('AUTH_FAILED')
@@ -156,13 +186,25 @@ class Logs:
         start,end=timestamp(filters['start_time']),timestamp(filters['end_time'])
         if end<=start: fail('INVALID_TIME_WINDOW')
         if end>dt.datetime.now(dt.timezone.utc): fail('FUTURE_WINDOW')
-        supported=cfg.get('filters',{}); params={}; applied={}
+        supported=cfg.get('filters',{}); params=dict(cfg.get('default_parameters',{})); applied={}; client_filters=[]
         for key,value in filters.items():
             spec=supported.get(key)
             if not spec or spec.get('verified') is not True: fail('FILTER_UNVERIFIED_'+key.upper())
-            if spec.get('mode','server')!='server': fail('CLIENT_FILTER_NOT_IMPLEMENTED')
-            params[spec['parameter']]=value; applied[key]={'value':value,'mode':'server','semantics':spec.get('semantics','exact')}
+            if spec.get('mode','server')=='client':
+                if key in ('start_time','end_time') or not spec.get('row_field'): fail('CLIENT_FILTER_INVALID')
+                client_filters.append((spec['row_field'],value,spec.get('normalize')))
+                applied[key]={'value':value,'mode':'client','semantics':'exact'}
+                continue
+            if spec.get('mode','server')!='server': fail('FILTER_MODE_UNSUPPORTED')
+            if spec.get('format')=='unix_seconds': value=int(timestamp(value).timestamp())
+            if spec.get('encoding')=='sentry_filter':
+                existing=json.loads(params.get('filter','{}'))
+                existing[spec['parameter']]={'field':spec['field'],'reverse':0,'rule':[value]}
+                params['filter']=json.dumps(existing,separators=(',',':'))
+            else: params[spec['parameter']]=value
+            applied[key]={'value':filters[key],'mode':'server','semantics':spec.get('semantics','exact')}
         size=limits.get('page_size',pg.get('max_page_size',2500))
+        if pg.get('fixed_page_size') and size!=pg['fixed_page_size']: fail('FIXED_PAGE_SIZE_REQUIRED')
         if not isinstance(size,int) or size<1 or size>pg.get('max_page_size',2500): fail('PAGE_SIZE_INVALID')
         fingerprint=sha(canonical({'target':self.client.base,'capability':self.cap,'filters':filters,'size':size}))
         position=pg.get('first',1); rows=[]; seen=set(); page_hashes=[]; pages=0; total=None; snapshot=None
@@ -176,7 +218,8 @@ class Logs:
         while True:
             if limits.get('max_pages') is not None and pages>=limits['max_pages']: break
             if limits.get('max_seconds') is not None and time.monotonic()-begun>=limits['max_seconds']: break
-            q=dict(params); q[pg.get('size_parameter','page_size')]=size
+            q=dict(params)
+            if pg.get('send_size_parameter',True): q[pg.get('size_parameter','page_size')]=size
             if position is not None: q[pg.get('parameter','page')]=position
             if snapshot is not None: q[pg['snapshot_parameter']]=snapshot
             endpoint=cfg['endpoint']
@@ -213,7 +256,13 @@ class Logs:
                 break
         cp={'schema_version':1,'fingerprint':fingerprint,'position':position,'rows':rows,'page_hashes':page_hashes,'pages':pages,'total':total,'snapshot':snapshot}
         cp['checkpoint_sha256']=sha(canonical(cp))
-        return {'rows':rows,'count':len(rows),'pages':pages,'page_size':size,'complete':completed,'deduplicated':0,'applied_filters':applied,'timezone':'offsets in start_time/end_time','checkpoint':cp,'endpoint':cfg['endpoint'],'input_sha256':fingerprint,'errors':[],'retries':self.client.events}
+        def normalize(value,mode):
+            if mode=='domain': return str(value).lower().rstrip('.')
+            if mode=='upper': return str(value).upper()
+            return value
+        if any(field not in r for field,_,_ in client_filters for r in rows): fail('CLIENT_FILTER_SCHEMA')
+        selected=[r for r in rows if all(normalize(r.get(field),mode)==normalize(value,mode) for field,value,mode in client_filters)]
+        return {'rows':selected,'count':len(selected),'raw_count':len(rows),'pages':pages,'page_size':size,'complete':completed,'deduplicated':0,'applied_filters':applied,'timezone':'offsets in start_time/end_time','checkpoint':cp,'endpoint':cfg['endpoint'],'input_sha256':fingerprint,'errors':[],'retries':self.client.events}
     def export(self, result, directory, formats):
         directory=Path(directory)
         directory.mkdir(parents=True,exist_ok=False,mode=0o700)

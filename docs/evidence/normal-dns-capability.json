@@ -1,0 +1,405 @@
+{
+  "base_url": "https://192.168.10.150:1606",
+  "verified_at": "2026-10-05T07:13:27.484691+00:00",
+  "software_version": null,
+  "api_base_path": "/webApi",
+  "read_only": true,
+  "authentication": {
+    "login_endpoint": "/login",
+    "method": "POST",
+    "provider": "environment_account_and_0600_text_password",
+    "account_environment": "SENTRY_ACCOUNT"
+  },
+  "tls": {
+    "mode": "per_client_certificate_sha256_pinning",
+    "source_name": "existing_normal_collector_DEFAULT_CERT_SHA256",
+    "global_verification_disabled": false
+  },
+  "tests": [
+    {
+      "test": "login",
+      "passed": true
+    },
+    {
+      "test": "health_log_get",
+      "passed": true,
+      "rows": 948,
+      "schema_fields": [
+        "caction",
+        "category",
+        "categoryidx",
+        "categoryrsk",
+        "chit",
+        "ctrigger",
+        "ctype",
+        "devid",
+        "devname",
+        "dstas",
+        "dstasn",
+        "dstcc",
+        "dstip",
+        "dstport",
+        "duration",
+        "edns",
+        "family",
+        "garb_score",
+        "garb_status",
+        "identity",
+        "ndomain",
+        "nresponse",
+        "protocol",
+        "qclass",
+        "qdomain",
+        "qid",
+        "qlen",
+        "qname",
+        "qry_format",
+        "qtime",
+        "qtld",
+        "qtldrsk",
+        "qtype",
+        "qusec",
+        "rbytes",
+        "rclass",
+        "rcode",
+        "rdata",
+        "rdataas",
+        "rdataasn",
+        "rdatacc",
+        "rdomain",
+        "rdtlen",
+        "rname",
+        "rrcount",
+        "rsp_format",
+        "rtime",
+        "rtld",
+        "rtldrsk",
+        "rttl",
+        "rtype",
+        "rusec",
+        "srcas",
+        "srcasn",
+        "srccc",
+        "srcid",
+        "srcip",
+        "srcport",
+        "tags",
+        "time",
+        "tunl_score",
+        "tunl_status",
+        "valid",
+        "whitelist"
+      ]
+    },
+    {
+      "test": "domain_filter",
+      "rows": 0,
+      "conforms": true,
+      "verification": "inconclusive_empty",
+      "query_values": "[MASKED]"
+    },
+    {
+      "test": "qtype_filter",
+      "rows": 885,
+      "conforms": true,
+      "verification": "sample_conformance_only",
+      "query_values": "[MASKED]"
+    },
+    {
+      "test": "known_domain_suffix_differential",
+      "query_values": "[MASKED]",
+      "nonempty": true,
+      "matches_baseline_suffix_subset": true,
+      "exact_domain_verified": false
+    },
+    {
+      "test": "page_2",
+      "passed": true,
+      "rows": 947,
+      "full_pagination_verified": false
+    },
+    {
+      "test": "bounded_window_repeat",
+      "same_result": true,
+      "raw_content_saved": false
+    },
+    {
+      "test": "time_window",
+      "rows_within_bounds": true,
+      "row_timezone_interpretation": "Asia/Taipei",
+      "nonempty": true
+    }
+  ],
+  "completeness_verified": false,
+  "device_writes": 0,
+  "logs": {
+    "endpoint": "/webApi/historylog/proxy/{page}",
+    "method": "GET",
+    "pagination": {
+      "kind": "page",
+      "first": 1,
+      "observed_page_limit": 2500,
+      "snapshot_support": "unknown",
+      "total_support": "unknown",
+      "completeness_verified": false
+    },
+    "time": {
+      "parameters": [
+        "start_time",
+        "end_time"
+      ],
+      "format": "unix_seconds",
+      "timezone": "UTC",
+      "row_timezone": "Asia/Taipei",
+      "verified_on_sample": true
+    },
+    "filters": {
+      "domain": {
+        "encoding": "domain",
+        "server_semantics_verified": false,
+        "sample_conforms": true,
+        "nonempty": false,
+        "server_suffix_verified_on_sample": true
+      },
+      "qtype": {
+        "encoding": "qtype",
+        "server_semantics_verified": false,
+        "sample_conforms": true,
+        "nonempty": true
+      },
+      "rcode": {
+        "server_semantics_verified": false,
+        "reason": "no_declared_endpoint_mapping_found"
+      }
+    },
+    "client_filters": {
+      "domain": {
+        "row_field": "qname",
+        "semantics": "exact",
+        "mode": "client",
+        "verified": true
+      },
+      "qtype": {
+        "row_field": "qtype",
+        "semantics": "exact",
+        "mode": "client",
+        "verified": true
+      },
+      "rcode": {
+        "row_field": "rcode",
+        "semantics": "exact",
+        "mode": "client",
+        "verified": true
+      }
+    }
+  },
+  "time_value_types": {
+    "qtime": [
+      "str"
+    ],
+    "time": [
+      "str"
+    ]
+  },
+  "time_format_shapes": {
+    "qtime": "iso_datetime",
+    "time": "iso_datetime"
+  },
+  "discovery_assets": [
+    {
+      "path": "/js/app.js",
+      "sha256": "20c0b6c35b7634156ec05a99cf2f1bad83bb02d310b56c238249adf042251d15",
+      "contains_rcode_filter_terms": false,
+      "filter_key_candidates": [
+        "charCodeAt",
+        "fromCharCode"
+      ]
+    }
+  ],
+  "html_contains_rcode_terms": false,
+  "html_script_count": 1,
+  "html_login_form_present": false,
+  "authenticated": true,
+  "new_tool_integration": [
+    {
+      "test": "new_tool_login",
+      "ok": true,
+      "error": null
+    },
+    {
+      "test": "new_tool_pagination",
+      "ok": true,
+      "pages": 2,
+      "rows": 3480,
+      "complete": false,
+      "exceeds_2500": true
+    },
+    {
+      "test": "domain",
+      "ok": true,
+      "filter_mode": "client",
+      "selected_rows": 0,
+      "matches_baseline_subset": true,
+      "complete": false,
+      "query_values": "[MASKED]"
+    },
+    {
+      "test": "qtype",
+      "ok": true,
+      "filter_mode": "client",
+      "selected_rows": 2968,
+      "matches_baseline_subset": true,
+      "complete": false,
+      "query_values": "[MASKED]"
+    },
+    {
+      "test": "rcode",
+      "ok": true,
+      "filter_mode": "client",
+      "selected_rows": 3229,
+      "matches_baseline_subset": true,
+      "complete": false,
+      "query_values": "[MASKED]"
+    },
+    {
+      "test": "qname",
+      "ok": true,
+      "filter_mode": "client",
+      "selected_rows": 20,
+      "matches_baseline_subset": true,
+      "complete": false,
+      "query_values": "[MASKED]"
+    }
+  ],
+  "pagination_intersection_check": {
+    "page_counts": [
+      701,
+      0,
+      0
+    ],
+    "overlap_1_2": 0,
+    "overlap_2_3": 0,
+    "raw_saved": false
+  },
+  "tool_capability": {
+    "logs": {
+      "endpoint": "/webApi/historylog/proxy/{position}",
+      "default_parameters": {
+        "filter": "{}"
+      },
+      "filters": {
+        "start_time": {
+          "parameter": "start_time",
+          "verified": true,
+          "format": "unix_seconds"
+        },
+        "end_time": {
+          "parameter": "end_time",
+          "verified": true,
+          "format": "unix_seconds"
+        },
+        "domain": {
+          "row_field": "qname",
+          "mode": "client",
+          "verified": true,
+          "normalize": "domain"
+        },
+        "qname": {
+          "row_field": "qname",
+          "mode": "client",
+          "verified": true,
+          "normalize": "domain"
+        },
+        "qtype": {
+          "row_field": "qtype",
+          "mode": "client",
+          "verified": true,
+          "normalize": "upper"
+        },
+        "rcode": {
+          "row_field": "rcode",
+          "mode": "client",
+          "verified": true,
+          "normalize": "upper"
+        }
+      },
+      "pagination": {
+        "kind": "page",
+        "max_page_size": 2500,
+        "fixed_page_size": 2500,
+        "send_size_parameter": false
+      }
+    },
+    "schema": {
+      "row_timezone": "Asia/Taipei",
+      "fields": [
+        "caction",
+        "category",
+        "categoryidx",
+        "categoryrsk",
+        "chit",
+        "ctrigger",
+        "ctype",
+        "devid",
+        "devname",
+        "dstas",
+        "dstasn",
+        "dstcc",
+        "dstip",
+        "dstport",
+        "duration",
+        "edns",
+        "family",
+        "garb_score",
+        "garb_status",
+        "identity",
+        "ndomain",
+        "nresponse",
+        "protocol",
+        "qclass",
+        "qdomain",
+        "qid",
+        "qlen",
+        "qname",
+        "qry_format",
+        "qtime",
+        "qtld",
+        "qtldrsk",
+        "qtype",
+        "qusec",
+        "rbytes",
+        "rclass",
+        "rcode",
+        "rdata",
+        "rdataas",
+        "rdataasn",
+        "rdatacc",
+        "rdomain",
+        "rdtlen",
+        "rname",
+        "rrcount",
+        "rsp_format",
+        "rtime",
+        "rtld",
+        "rtldrsk",
+        "rttl",
+        "rtype",
+        "rusec",
+        "srcas",
+        "srcasn",
+        "srccc",
+        "srcid",
+        "srcip",
+        "srcport",
+        "tags",
+        "time",
+        "tunl_score",
+        "tunl_status",
+        "valid",
+        "whitelist"
+      ]
+    }
+  },
+  "tool_version": "4.0.0",
+  "new_tool_verified_at": "2026-10-05T07:21:37.477162+00:00"
+}

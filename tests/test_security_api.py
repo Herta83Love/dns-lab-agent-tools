@@ -115,3 +115,51 @@ class Tests(unittest.TestCase):
         with patch.object(c.opener,'open',side_effect=urllib.error.URLError(ssl.SSLCertVerificationError('fixture'))):
             with self.assertRaises(Error) as caught: c.raw('/health')
             self.assertEqual(caught.exception.code,'TLS_FAILURE'); self.assertFalse(caught.exception.retryable)
+    def test_client_filters_are_explicit_and_exact(self):
+        cap=copy.deepcopy(CAP)
+        cap['logs']['filters']['domain']={'mode':'client','verified':True,'row_field':'qname','normalize':'domain'}
+        cap['logs']['filters']['qtype']={'mode':'client','verified':True,'row_field':'qtype','normalize':'upper'}
+        cap['logs']['filters']['rcode']={'mode':'client','verified':True,'row_field':'rcode','normalize':'upper'}
+        rows=[{'qname':'taipeinetworks.com.','qtype':'A','rcode':'NOERROR'},{'qname':'sub.taipeinetworks.com','qtype':'A','rcode':'NOERROR'},{'qname':'taipeinetworks.com','qtype':'AAAA','rcode':'NOERROR'}]
+        r=self.query([self.batch(rows,3)],cap)
+        self.assertEqual(r['count'],1);self.assertEqual(r['raw_count'],3)
+        self.assertEqual(r['applied_filters']['domain']['mode'],'client')
+    def test_legacy_password_file_and_account_env(self):
+        with tempfile.TemporaryDirectory() as td:
+            p=Path(td)/'secret';p.write_text('fixture-password\n');p.chmod(0o600)
+            profile={'base_url':LAB,'auth':{'mode':'json','login':'/login','verify':'/me','secret_file':str(p),'secret_file_format':'password_text','env':{'username':'TEST_USER'},'fields':{'account':'username','password':'password'}}}
+            with patch.dict('os.environ',{'TEST_USER':'fixture-account'}):
+                c=Client(profile)
+                with patch.object(c,'raw',side_effect=[b'{}',b'{}']) as req:
+                    self.assertTrue(c.authenticate()['authenticated'])
+                    self.assertEqual(req.call_args_list[0].args[2]['password'],'fixture-password')
+    def test_same_origin_redirect_boundaries(self):
+        from src.dns_security_api.core import NoRedirect
+        import urllib.request
+        handler=NoRedirect(NORMAL); req=urllib.request.Request(NORMAL+'/login')
+        self.assertIsNotNone(handler.redirect_request(req,None,302,'',{},NORMAL+'/home'))
+        for url in [LAB+'/home','https://outside.example/home','http://192.168.10.150:1606/home']:
+            with self.assertRaisesRegex(Error,'REDIRECT'):handler.redirect_request(req,None,302,'',{},url)
+    def test_certificate_pin_is_checked_before_use(self):
+        from src.dns_security_api.core import PinnedHandler
+        from unittest.mock import Mock
+        import http.client,ssl
+        h=PinnedHandler('0'*64)
+        captured=[]
+        with patch.object(h,'do_open',side_effect=lambda factory,request:captured.append(factory)):
+            h.https_open(None)
+        connection=captured[0]('fixture.invalid')
+        def connect(instance): instance.sock=Mock();instance.sock.getpeercert.return_value=b'fixture-certificate'
+        with patch.object(http.client.HTTPSConnection,'connect',connect):
+            with self.assertRaises(ssl.SSLError):connection.connect()
+        with self.assertRaisesRegex(Error,'TLS_PIN_INVALID'):PinnedHandler('invalid')
+    def test_unix_time_and_nested_filter_encoding(self):
+        cap=copy.deepcopy(CAP)
+        cap['logs']['filters']['start_time']['format']='unix_seconds'
+        cap['logs']['filters']['qtype'].update(encoding='sentry_filter',parameter='rtype',field='type')
+        c=Fake();c.batches=[self.batch([],0)]
+        Logs(c,cap).query(FILTER)
+        import urllib.parse
+        args=urllib.parse.parse_qs(urllib.parse.urlsplit(c.calls[0][0]).query)
+        self.assertTrue(args['start_time'][0].isdigit())
+        self.assertEqual(json.loads(args['filter'][0])['rtype']['rule'],['A'])
