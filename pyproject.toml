@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dns-security-api-tools"
+version = "4.0.0"
+requires-python = ">=3.10"
+description = "Profile-bound DNS API tools with guarded export and forward changes"
+
+[tool.setuptools.packages.find]
+where = ["src"]

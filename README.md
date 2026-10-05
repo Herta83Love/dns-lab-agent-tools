@@ -6,6 +6,14 @@ Chatbox integration: see [CHATBOX_AGENT_INSTRUCTIONS.md](CHATBOX_AGENT_INSTRUCTI
 
 This repository is installable as a Chatbox/Codex Skill from its GitHub URL. Skill discovery uses the root [SKILL.md](SKILL.md), with UI metadata in [agents/openai.yaml](agents/openai.yaml).
 
+## DNS Security API v4
+
+The new profile-driven API package is in `src/dns_security_api`; legacy tools remain compatible. Install with `python -m pip install .`, then register `DNS_TOOL_DEFINITIONS` and call `Tools.execute`. See [the new Skill](skills/dns-security-api-tools/SKILL.md), [parameter and profile contract](skills/dns-security-api-tools/references/contract.md), and [Traditional Chinese README](README.zh-TW.md).
+
+The new package provides authentication/logout, read-only discovery evidence, strict server-filter queries, page/offset/cursor pagination, checkpoint resume, JSON/JSONL/CSV manifests and approved forward previews/apply/rollback. Normal DNS is read-only; writes require the exact laboratory URL, enabled lab profile and explicit approval of the plan SHA-256. TLS verification is mandatory; self-signed devices require a trusted CA file. Secrets remain in environment variables or mode-0600 JSON files; sessions stay in memory.
+
+Completeness requires a vendor-verified stable snapshot and matching total. Unknown filters fail instead of widening a query. Example profiles are deliberately unconfigured. Vendor-specific authentication redirects, epoch/nested filter encoding, custom/client-side filters and streaming export require adapters. Real-device login and filter tests have not passed yet; mock tests are not evidence of device support. No scheduling, datasets, models or traffic generators are added. Run `python -m unittest discover -v`.
+
 ## English
 
 Guarded function tools for a VLLM/OpenAI-compatible Agent operating controlled DNS security laboratories.

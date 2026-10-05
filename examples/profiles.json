@@ -1,0 +1,4 @@
+{
+  "normal": {"base_url":"https://192.168.10.150:1606","role":"normal","allow_forward_writes":false,"timeout":30,"tls":{},"auth":{"mode":"none"},"capability":{}},
+  "lab": {"base_url":"http://172.16.30.209:1606","role":"lab","allow_forward_writes":false,"timeout":30,"auth":{"mode":"none"},"capability":{}}
+}
