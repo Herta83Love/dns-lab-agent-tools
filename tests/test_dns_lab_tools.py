@@ -7,14 +7,23 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 import agent.dns_lab_tools as tools
-from agent.dns_lab_tools import DNSLabToolError, _domain, _split_target, _profile
+from agent.dns_lab_tools import DNSLabToolError, _domain, _split_target, _profile, _forward_domain, _forward_target
 
-CFG={"allowed_forward_suffixes":["test","example","invalid"],"allowed_forward_networks":["10.0.0.0/8","172.16.0.0/12","192.168.0.0/16"],"allowed_forward_ports":[53,5353]}
+CFG={"allowed_forward_suffixes":["test","example","invalid","taipeinetworks.com"],"allowed_forward_networks":["10.0.0.0/8","172.16.0.0/12","192.168.0.0/16"],"allowed_forward_ports":[53,5353,5354]}
 class Tests(unittest.TestCase):
     def test_domain(self): self.assertEqual(_domain("x.lab.test",CFG),"x.lab.test")
+    def test_controlled_lab_domain(self): self.assertEqual(_domain("valid-lab2.taipeinetworks.com",CFG),"valid-lab2.taipeinetworks.com")
+    def test_new_controlled_lab_subdomain(self): self.assertEqual(_domain("future-lab.taipeinetworks.com",CFG),"future-lab.taipeinetworks.com")
     def test_domain_rejects_public(self):
         with self.assertRaises(ValueError): _domain("example.com",CFG)
     def test_private_target(self): self.assertEqual(_split_target("172.16.30.10:53",CFG),"172.16.30.10:53")
+    def test_controlled_lab_port(self): self.assertEqual(_split_target("172.16.30.160:5354",CFG),"172.16.30.160:5354")
+    def test_forward_accepts_unlisted_valid_domain(self): self.assertEqual(_forward_domain("lab.any-valid-domain.net"),"lab.any-valid-domain.net")
+    def test_forward_accepts_unlisted_valid_port(self): self.assertEqual(_forward_target("172.16.30.160:45678",CFG),"172.16.30.160:45678")
+    def test_forward_rejects_invalid_port_range(self):
+        with self.assertRaises(ValueError): _forward_target("172.16.30.160:65536",CFG)
+    def test_forward_still_rejects_public_target(self):
+        with self.assertRaises(ValueError): _forward_target("8.8.8.8:5354",CFG)
     def test_public_target_rejected(self):
         with self.assertRaises(ValueError): _split_target("8.8.8.8:53",CFG)
     def test_port_rejected(self):
@@ -48,7 +57,9 @@ class Tests(unittest.TestCase):
         self.assertNotIn("secret_file",encoded)
         self.assertNotIn('"account"',encoded)
         self.assertNotIn("base_url",encoded)
-        self.assertEqual(result["policy"]["allowed_forward_suffixes"],["lab.test"])
+        self.assertEqual(result["policy"]["allowed_forward_suffixes"],[])
+        self.assertEqual(result["policy"]["allowed_forward_ports"],[])
+        self.assertEqual(result["policy"]["allowed_synthetic_suffixes"],["lab.test"])
 
     def test_invalid_plan_id_gives_recovery_action(self):
         cfg={"default_profile":"lab","profiles":{"lab":{}}}
@@ -70,6 +81,61 @@ class Tests(unittest.TestCase):
         self.assertEqual(caught.exception.payload["error_code"],"INVALID_ARGUMENT")
         self.assertIn("primary is required",caught.exception.payload["message"])
         self.assertEqual(caught.exception.payload["action"],"stop_and_report")
+
+    def test_forward_add_uses_verified_nested_isafer_schema(self):
+        method,body=tools._forward_api_request({
+            "operation":"add",
+            "domain":"valid-lab2.taipeinetworks.com",
+            "primary":"172.16.30.160:5354",
+            "secondary":"",
+            "recursive":True,
+            "enabled":True,
+            "precedance":4,
+        })
+        self.assertEqual(method,"POST")
+        self.assertEqual(body,{
+            "domain":"valid-lab2.taipeinetworks.com",
+            "recursive":True,
+            "enable":True,
+            "ipv4":{"enable":True,"primary":"172.16.30.160:5354","secondary":""},
+            "ipv6":{"enable":False,"primary":"","secondary":""},
+            "precedance":4,
+        })
+        self.assertNotIn("state",body)
+        self.assertNotIn("primary",body)
+
+    def test_forward_modify_uses_patch_and_uuid(self):
+        method,body=tools._forward_api_request({
+            "operation":"modify",
+            "uuid":"forward-uuid",
+            "domain":"valid-lab2.taipeinetworks.com",
+            "primary":"172.16.30.160:5354",
+            "secondary":"172.16.30.161:53",
+            "recursive":False,
+            "enabled":False,
+        })
+        self.assertEqual(method,"PATCH")
+        self.assertEqual(body["uuid"],"forward-uuid")
+        self.assertFalse(body["enable"])
+        self.assertFalse(body["recursive"])
+        self.assertEqual(body["ipv4"]["secondary"],"172.16.30.161:53")
+        self.assertEqual(body["precedance"],4)
+
+    def test_forward_delete_contract_is_unchanged(self):
+        method,body=tools._forward_api_request({"operation":"delete","uuid":"forward-uuid"})
+        self.assertEqual((method,body),("DELETE",{"list":["forward-uuid"]}))
+
+    def test_forward_legacy_plan_state_is_migrated_to_enable(self):
+        method,body=tools._forward_api_request({
+            "operation":"add",
+            "domain":"x.lab.test",
+            "primary":"10.0.0.2:53",
+            "secondary":"",
+            "recursive":True,
+            "state":False,
+        })
+        self.assertEqual(method,"POST")
+        self.assertFalse(body["enable"])
 
     def test_missing_config_stops_without_connecting(self):
         with tempfile.TemporaryDirectory() as directory:

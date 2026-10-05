@@ -4,7 +4,7 @@
 
 安裝：`python -m pip install .`。載入 `Tools` 與 `DNS_TOOL_DEFINITIONS`，以 profile 與精確 target 呼叫各工具。設備設定範本在 `examples/profiles.json`；它尚未配置認證或設備專屬 endpoint，不能直接當成完成的設備設定。
 
-正常 DNS `https://192.168.10.150:1606` 唯讀；實驗 DNS `http://172.16.30.209:1606` 的 forward 修改必須先預覽、明確核准計畫 SHA-256，再以 `dry_run:false` 套用並驗證。新版硬性阻擋正常 DNS 及未知主機的 forward 寫入。
+正常 DNS `https://192.168.10.150:1606` 唯讀；實驗 DNS `https://172.16.30.209:1606` 的 forward 修改必須先預覽、明確核准計畫 SHA-256，再套用並驗證。新版硬性阻擋正常 DNS 及未知主機的 forward 寫入。
 
 認證支援 HTTP、HTTPS、環境變數、0600 JSON／既有純密碼秘密檔、cookie/token、CSRF、GET 到期重登入及登出。自簽憑證須提供可信 CA 檔，或沿用可信來源的單一 client 憑證指紋綁定；不得全域停用 TLS 驗證。Session 不寫入 state。
 

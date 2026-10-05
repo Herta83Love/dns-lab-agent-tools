@@ -59,6 +59,16 @@ lab_dns_get_context
 
 若設備拒絕寫入，不得回頭執行 `forward_mgr.py`。依工具回傳的 `next_action` 交由人工 GUI 或設備管理者處理。
 
+Contract 3.1 已內建 iSafer `v2.4.0.2443028217-1` 的巢狀 forward request
+mapping。Agent 仍只傳公開 plan 參數，不得自行建立設備 payload。舊式扁平
+`primary`／`secondary`／`state` payload 無效；設備可能把其 PHP 型別錯誤包裝成
+HTTP 404，不能因此判定 endpoint 不存在或輪流嘗試其他 method。
+
+Forward change 可使用任何語法合法的 FQDN 與 `1–65535` port，不使用 domain
+或 port allowlist。目標 IP 仍必須位於設定檔核准的私有網段；人工核准、現況
+SHA 綁定與正常 DNS 唯讀限制不變。此放寬只適用 forward change，不取消合成
+流量的 suffix、數量與速率限制。
+
 ## Log workflow
 
 ```text

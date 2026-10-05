@@ -1,7 +1,7 @@
 {
   "project": "dns-lab-agent-tools",
-  "contract_version": "3.0",
-  "release_date": "2026-10-02",
+  "contract_version": "3.1",
+  "release_date": "2026-10-05",
   "entrypoint": "agent.dns_lab_tools",
   "definitions_symbol": "DNS_LAB_TOOL_DEFINITIONS",
   "executor_symbol": "execute_dns_lab_tool",
@@ -24,8 +24,8 @@
     "legacy_forward_mgr"
   ],
   "source_sha256": {
-    "agent/dns_lab_tools.py": "f38cb4ee3bf4268342cbbc3246c59f81564139f12583145bf6c0c9e94915e0c2",
+    "agent/dns_lab_tools.py": "c1c33ecaf8e004ddf24e641558329fbc0172a475e01f041397985f631157aba4",
     "agent/approve_dns_lab_plan.py": "ec368a5bfc5ab1ec3fd93e24c51dd50ba4e098095333596afa165687965c0648",
-    "agent/dns_lab_config.example.json": "b1bb18f6e56c8da14235aea55e34d80e19ce8a573bd96d23f908fda9613dce88"
+    "agent/dns_lab_config.example.json": "c2d8e65bdcb6a91f21861f944a600218011c3010ea8e6b98f4aa97abc7d0b8ee"
   }
 }

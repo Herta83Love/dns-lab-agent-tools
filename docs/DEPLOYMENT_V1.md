@@ -42,9 +42,10 @@ Creates a preview-only plan for `add`, `modify`, or `delete`. It does not call a
 
 Safety policy:
 
-- only `.test`, `.example`, and `.invalid` suffixes;
+- any syntactically valid FQDN may be used for an approved forward change;
 - targets only in private `10/8`, `172.16/12`, or `192.168/16` networks;
-- only ports 53 and 5353;
+- any valid port from 1 through 65535 may be used for an approved forward change;
+- the target IP must still be inside an explicitly configured private lab network;
 - modify/delete UUID must exist in current configuration;
 - no delete-all or default/root forward tool;
 - plans expire after 30 minutes;
@@ -53,6 +54,27 @@ Safety policy:
 ### `lab_dns_apply_forward_plan`
 
 Applies only an existing preview plan with a human-generated one-time token. Before applying, it rechecks expiry, one-time status, token binding, and current configuration SHA-256. It saves a mode-0600 before-state backup, applies only the approved payload, marks the plan used, rereads the result, and writes an audit event.
+
+For iSafer UI build `v2.4.0.2443028217-1`, add and modify requests use the
+device's nested domain-route schema. The canonical tool translates an approved
+plan internally to this shape; callers must not construct it or replay it with
+direct HTTP:
+
+```json
+{
+  "domain": "sample.lab.test",
+  "recursive": true,
+  "enable": true,
+  "ipv4": {"enable": true, "primary": "172.16.30.210:53", "secondary": ""},
+  "ipv6": {"enable": false, "primary": "", "secondary": ""},
+  "precedance": 4
+}
+```
+
+`precedance` is the spelling required by the appliance. The former flat
+`primary`/`secondary`/`state` request was invalid and could surface PHP type
+errors wrapped as HTTP 404. A 404 containing a controller type error therefore
+does not prove that the route is absent.
 
 ### `lab_dns_plan_synthetic_traffic`
 

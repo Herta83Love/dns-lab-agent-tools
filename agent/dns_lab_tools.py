@@ -31,7 +31,8 @@ CONFIG_PATH = Path(__file__).with_name("dns_lab_config.json")
 AUDIT = ROOT / "audit.jsonl"
 PLANS = ROOT / "plans"
 EXPORTS = ROOT / "exports"
-TOOL_CONTRACT_VERSION = "3.0"
+TOOL_CONTRACT_VERSION = "3.1"
+FORWARD_API_SCHEMA_VERSION = "isafer-domain-route-v2.4-nested"
 
 AGENT_RECOVERY_RULES = [
     "每次新任務或對話壓縮後，先呼叫 lab_dns_get_context；不要搜尋工具檔案或猜測 API。",
@@ -244,9 +245,9 @@ DNS_LAB_TOOL_DEFINITIONS = [
     {"type":"function","function":{"name":"lab_dns_get_plan_status","description":"恢復既有 forward/traffic 計畫狀態與下一步。只讀；不回傳 approval token。壓縮後若記得 plan_id，先用此工具，不要重建或重試寫入。","parameters":{"type":"object","properties":{"plan_id":{"type":"string","description":"可省略；省略時列出最近 10 個計畫"}}}}},
     {"type":"function","function":{"name":"lab_dns_get_forwarders","description":"唯讀取得指定 DNS profile 的現行 forward 清單及 UUID。修改前必須先呼叫；不得以 shell/curl 重查或直接猜 UUID。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","default":"lab-malicious"}}}}},
     {"type":"function","function":{"name":"lab_dns_export_logs","description":"唯讀匯出指定時間窗的 Proxy DNS Log 到受保護目錄，只回傳統計、路徑與 SHA-256。時間必須是含 UTC offset 的 RFC3339，end 至少早於現在 2 分鐘。domain 規則使用字串陣列；若回傳結構化不可重試錯誤，停止且不要自行呼叫 API。輸出固定是 lab_unlabeled_staging。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","default":"lab-malicious"},"start_time":{"type":"string","description":"含時區 RFC3339，例如 2026-10-01T14:00:00+08:00"},"end_time":{"type":"string","description":"含時區 RFC3339；至少早於現在 2 分鐘"},"domains":{"type":"array","items":{"type":"string"},"maxItems":200,"description":"完整 domain/suffix 字串陣列，不要傳 scalar"},"exclude_domains":{"type":"boolean","default":False},"qtypes":{"type":"array","items":{"type":"string"},"maxItems":20},"actions":{"type":"array","items":{"type":"string","enum":["Allow","Block","Truncate","Translate"]},"maxItems":4},"source_ips":{"type":"array","items":{"type":"string"},"maxItems":100},"categories":{"type":"array","items":{"type":"string"},"maxItems":100},"result_terms":{"type":"array","items":{"type":"string"},"maxItems":100}},"required":["start_time","end_time"]}}},
-    {"type":"function","function":{"name":"lab_dns_plan_forward_change","description":"只建立 forward add/modify/delete 預覽，不寫設備。固定流程：get_context → get_forwarders → plan → 人工核准 → apply。modify/delete 的 UUID 必須來自最新 get_forwarders。primary/secondary 必須是允許的私網 IP[:port]；允許值以 get_context 為準，不要猜。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","default":"lab-malicious"},"operation":{"type":"string","enum":["add","modify","delete"]},"domain":{"type":"string"},"primary":{"type":"string","description":"允許的私有 IP，可附核准 port；add/modify 必填"},"secondary":{"type":"string"},"recursive":{"type":"boolean","default":False},"enabled":{"type":"boolean","default":True},"uuid":{"type":"string","description":"modify/delete 必填，必須來自最新現況"}},"required":["operation","domain"]}}},
+    {"type":"function","function":{"name":"lab_dns_plan_forward_change","description":"只建立 forward add/modify/delete 預覽，不寫設備。固定流程：get_context → get_forwarders → plan → 人工核准 → apply。modify/delete 的 UUID 必須來自最新 get_forwarders。domain 可為任何合法 FQDN；primary/secondary 必須是允許私網內的 IP，可使用 1–65535 port。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","default":"lab-malicious"},"operation":{"type":"string","enum":["add","modify","delete"]},"domain":{"type":"string","description":"任何語法合法的 FQDN"},"primary":{"type":"string","description":"允許私網內的 IP，可附 1–65535 port；add/modify 必填"},"secondary":{"type":"string"},"recursive":{"type":"boolean","default":False},"enabled":{"type":"boolean","default":True},"uuid":{"type":"string","description":"modify/delete 必填，必須來自最新現況"}},"required":["operation","domain"]}}},
     {"type":"function","function":{"name":"lab_dns_apply_forward_plan","description":"套用既有且人工核准的 forward 計畫。只接受 plan_id 與一次性 token；不得放入設備密碼。若錯誤標記 retryable=false，立即停止並原樣回報 error_code/next_action，禁止猜測其他 endpoint、HTTP method 或 payload。","parameters":{"type":"object","properties":{"plan_id":{"type":"string"},"approval_token":{"type":"string"}},"required":["plan_id","approval_token"]}}},
-    {"type":"function","function":{"name":"lab_dns_plan_synthetic_traffic","description":"建立受限的合成高熵/DGA-like DNS 流量預覽；不執行且不讀取檔案或真實 payload。domain_suffix、count、qps 與 port 限制以 lab_dns_get_context 為準，不要依聊天記憶猜測。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","default":"lab-malicious"},"mode":{"type":"string","enum":["high_entropy","dga_like","nxdomain_burst","synthetic_tunnel_shape"]},"domain_suffix":{"type":"string","description":"必須符合 get_context 回傳的 allowed_forward_suffixes"},"count":{"type":"integer","minimum":1,"maximum":500},"qps":{"type":"number","minimum":0.2,"maximum":20},"qtype":{"type":"string","enum":["A","AAAA","TXT","CNAME"]},"seed":{"type":"integer"}},"required":["mode","domain_suffix","count","qps","qtype","seed"]}}},
+    {"type":"function","function":{"name":"lab_dns_plan_synthetic_traffic","description":"建立受限的合成高熵/DGA-like DNS 流量預覽；不執行且不讀取檔案或真實 payload。domain_suffix、count、qps 與流量目標限制以 lab_dns_get_context 為準，不要依聊天記憶猜測。","parameters":{"type":"object","properties":{"dns_profile":{"type":"string","default":"lab-malicious"},"mode":{"type":"string","enum":["high_entropy","dga_like","nxdomain_burst","synthetic_tunnel_shape"]},"domain_suffix":{"type":"string","description":"必須符合 get_context 回傳的 allowed_synthetic_suffixes"},"count":{"type":"integer","minimum":1,"maximum":500},"qps":{"type":"number","minimum":0.2,"maximum":20},"qtype":{"type":"string","enum":["A","AAAA","TXT","CNAME"]},"seed":{"type":"integer"}},"required":["mode","domain_suffix","count","qps","qtype","seed"]}}},
     {"type":"function","function":{"name":"lab_dns_run_synthetic_traffic_plan","description":"執行既有且人工核准的合成流量計畫。只接受 plan_id 與一次性 token；遇到不可重試錯誤立即停止，不得改用 shell/dig 自行補跑。","parameters":{"type":"object","properties":{"plan_id":{"type":"string"},"approval_token":{"type":"string"}},"required":["plan_id","approval_token"]}}},
 ]
 
@@ -340,12 +341,24 @@ def _context(profile_name=None):
             if len(recent)>=10: break
     return {
         "tool_contract_version": TOOL_CONTRACT_VERSION,
+        "forward_api_contract": {
+            "schema_version": FORWARD_API_SCHEMA_VERSION,
+            "device_ui_build_verified": "v2.4.0.2443028217-1",
+            "endpoint": "/webApi/recursor/forward",
+            "methods": {"add": "POST", "modify": "PATCH", "delete": "DELETE"},
+            "write_shape": "nested ipv4/ipv6 objects with outer enable and device-spelled precedance",
+            "caller_action": "Use plan/apply tools only; callers must not construct or replay appliance payloads.",
+        },
         "default_profile": cfg["default_profile"],
         "profiles": profiles,
         "policy": {
-            "allowed_forward_suffixes": cfg["allowed_forward_suffixes"],
+            "allowed_forward_suffixes": [],
             "allowed_forward_networks": cfg["allowed_forward_networks"],
-            "allowed_forward_ports": cfg["allowed_forward_ports"],
+            "allowed_forward_ports": [],
+            "allowed_synthetic_suffixes": cfg["allowed_forward_suffixes"],
+            "forward_domain_policy": "any_valid_fqdn",
+            "forward_port_policy": "any_tcp_udp_port_1_65535",
+            "forward_target_policy": "ip_must_be_inside_allowed_private_networks",
             "max_export_bytes": cfg["max_export_bytes"],
             "min_free_bytes": cfg["min_free_bytes"],
             "max_traffic_queries": cfg["max_traffic_queries"],
@@ -405,8 +418,35 @@ def _forwarders(client=None,profile_name=None):
     client=client or LabClient(profile_name); status,_,raw=client.request("/webApi/recursor/forward")
     data=json.loads(raw); return data if isinstance(data,list) else ([data] if data else [])
 def _sanitized_forward(item):
-    keys=("uuid","domain","state","enable","recursive","primary","secondary","primary_ipv4","secondary_ipv4","status","method")
+    keys=("uuid","domain","state","enable","recursive","precedance","primary","secondary",
+          "enable_ipv4","primary_ipv4","secondary_ipv4","enable_ipv6","primary_ipv6",
+          "secondary_ipv6","status","method")
     return {k:item.get(k) for k in keys if k in item}
+
+def _forward_api_request(payload):
+    """Translate an approved internal plan into the iSafer v2.4 appliance contract."""
+    operation=payload["operation"]
+    if operation=="delete":
+        return "DELETE", {"list":[payload["uuid"]]}
+    if operation not in {"add","modify"}:
+        raise ValueError("unknown forward operation")
+    enabled=bool(payload.get("enabled",payload.get("state",True)))
+    body={
+        "domain":payload["domain"],
+        "recursive":bool(payload["recursive"]),
+        "enable":enabled,
+        "ipv4":{
+            "enable":True,
+            "primary":payload["primary"],
+            "secondary":payload.get("secondary","")
+        },
+        "ipv6":{"enable":False,"primary":"","secondary":""},
+        # The appliance API intentionally uses this misspelling.
+        "precedance":int(payload.get("precedance",4)),
+    }
+    if operation=="modify":
+        body["uuid"]=payload["uuid"]
+    return ("POST" if operation=="add" else "PATCH"),body
 def _split_target(value,cfg):
     if not value: return ""
     value=str(value).strip(); host=value; port=53
@@ -419,6 +459,27 @@ def _domain(value,cfg):
     value=str(value).strip().rstrip(".").lower()
     if not re.fullmatch(r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}",value): raise ValueError("invalid domain")
     if not any(value==s or value.endswith("."+s) for s in cfg["allowed_forward_suffixes"]): raise ValueError("domain suffix is not allowed by lab policy")
+    return value
+
+def _forward_target(value,cfg):
+    """Validate a forward target by private network only; all valid ports are allowed."""
+    if not value: return ""
+    value=str(value).strip(); host=value; port=53
+    if value.count(":")==1:
+        host,raw_port=value.rsplit(":",1)
+        try: port=int(raw_port)
+        except ValueError: raise ValueError("forward target port must be an integer") from None
+    if not 1<=port<=65535: raise ValueError("forward target port must be between 1 and 65535")
+    address=ipaddress.ip_address(host)
+    if not any(address in ipaddress.ip_network(n) for n in cfg["allowed_forward_networks"]):
+        raise ValueError("forward target must be inside an allowed private lab network")
+    return f"{address}:{port}"
+
+def _forward_domain(value):
+    """Validate FQDN syntax without imposing a zone allowlist."""
+    value=str(value).strip().rstrip(".").lower()
+    if not re.fullmatch(r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}",value):
+        raise ValueError("invalid domain")
     return value
 def _write_plan(kind,payload,before):
     _secure_dirs(); cfg=_config(); plan_id=f"{kind}-{_now():%Y%m%dT%H%M%SZ}-{uuid.uuid4().hex[:8]}"
@@ -538,12 +599,12 @@ def _execute_dns_lab_tool(name, args):
         return {"dns_profile":profile_name,"batch_id":batch,"rows":total,"pages":len(pages),"raw_bytes":total_bytes,"filter":filters,"manifest_sha256":_sha(mp.read_bytes()),"output":str(out),"partition":"lab_unlabeled_staging","next_action":"Validate schema, ownership, deduplication, labels and leakage outside this tool before any Dataset intake. Never treat this export as strong-labeled data."}
     if name=="lab_dns_plan_forward_change":
         if not profile.get("allow_forward_writes",False): raise ValueError("forward writes are disabled for this DNS profile")
-        operation=args["operation"]; domain=_domain(args["domain"],cfg); current=_forwarders(profile_name=profile_name); uuid_value=str(args.get("uuid","")).strip()
+        operation=args["operation"]; domain=_forward_domain(args["domain"]); current=_forwarders(profile_name=profile_name); uuid_value=str(args.get("uuid","")).strip()
         existing=next((x for x in current if str(x.get("uuid"))==uuid_value),None)
         if operation in {"modify","delete"} and not existing: raise ValueError("uuid does not match a current forward entry")
         if operation in {"add","modify"} and not str(args.get("primary","")).strip(): raise ValueError("primary is required for add/modify")
         payload={"dns_profile":profile_name,"operation":operation,"domain":domain,"uuid":uuid_value}
-        if operation!="delete": payload.update({"primary":_split_target(args.get("primary",""),cfg),"secondary":_split_target(args.get("secondary",""),cfg),"recursive":bool(args.get("recursive",False)),"state":bool(args.get("enabled",True))})
+        if operation!="delete": payload.update({"primary":_forward_target(args.get("primary",""),cfg),"secondary":_forward_target(args.get("secondary",""),cfg),"recursive":bool(args.get("recursive",False)),"enabled":bool(args.get("enabled",True)),"precedance":4,"api_schema":FORWARD_API_SCHEMA_VERSION})
         result={**_write_plan("forward",payload,current),"preview":payload,"current_count":len(current)}
         result["next_action"]=f"Human reviews this immutable preview and runs: python -m agent.approve_dns_lab_plan {result['plan_id']}. Then call lab_dns_apply_forward_plan once with the returned token."
         result["do_not"]= "Do not call curl/shell/browser APIs, change HTTP methods, or recreate the plan unless it expires or current state changes."
@@ -556,9 +617,7 @@ def _execute_dns_lab_tool(name, args):
         client=LabClient(profile_name); before=_forwarders(client)
         if _sha(_canonical(before).encode())!=plan["before_sha256"]: raise RuntimeError("forward configuration changed after preview")
         p=plan["payload"]; operation=p["operation"]
-        if operation=="add": body={"domain":p["domain"],"primary":p["primary"],"secondary":p["secondary"],"recursive":p["recursive"],"state":p["state"]}; method="POST"
-        elif operation=="modify": body={"uuid":p["uuid"],"domain":p["domain"],"primary":p["primary"],"secondary":p["secondary"],"recursive":p["recursive"],"state":p["state"]}; method="PATCH"
-        else: body={"list":[p["uuid"]]}; method="DELETE"
+        method,body=_forward_api_request(p)
         backup=PLANS/f"{plan['plan_id']}.before.json"; backup.write_text(json.dumps(before,indent=2,sort_keys=True)+"\n"); os.chmod(backup,0o600)
         try:
             status,_,raw=client.request("/webApi/recursor/forward",method,body)

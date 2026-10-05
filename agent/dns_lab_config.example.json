@@ -10,15 +10,22 @@
       "forward_write_status": "enabled",
       "operator_notes": [
         "Use lab_dns_get_forwarders before every change.",
-        "If a write returns retryable=false, stop and report it; never probe alternate API payloads."
+        "If a write returns retryable=false, stop and report it; never probe alternate API payloads.",
+        "The canonical tool owns the verified nested iSafer forward payload; callers provide plan fields only.",
+        "Forward changes accept any valid FQDN and port 1-65535; the destination IP must remain inside allowed_forward_networks."
       ],
       "traffic_dns_server": "LAB_DNS_HOST",
       "traffic_dns_port": 53
     }
   },
-  "allowed_forward_suffixes": ["test", "example", "invalid"],
+  "allowed_forward_suffixes": [
+    "test",
+    "example",
+    "invalid",
+    "taipeinetworks.com"
+  ],
   "allowed_forward_networks": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
-  "allowed_forward_ports": [53, 5353],
+  "allowed_forward_ports": [53, 1053, 5353, 5354],
   "max_export_bytes": 53687091200,
   "min_free_bytes": 10737418240,
   "max_traffic_queries": 500,

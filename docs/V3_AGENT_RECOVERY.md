@@ -53,6 +53,12 @@ get_context
 
 任何步驟都不得替換成 shell、curl、瀏覽器或自行組 HTTP request。
 
+Contract 3.1 已內建 iSafer `v2.4.0.2443028217-1` 的巢狀 forward mapping。
+Agent 仍只傳公開 plan 欄位（`domain`、`primary`、`secondary`、`recursive`、
+`enabled`）；只有工具可產生巢狀 `ipv4`／`ipv6`、外層 `enable`，以及設備所用
+拼字 `precedance` 的 request。不得重用舊式扁平
+`primary`／`secondary`／`state` 設備 payload。
+
 ## 錯誤契約
 
 受控失敗包含：
