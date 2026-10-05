@@ -13,3 +13,7 @@
 完整設定、錯誤與限制請讀 [工具合約](skills/dns-security-api-tools/references/contract.md)，Agent 操作請讀 [Skill](skills/dns-security-api-tools/SKILL.md)。已在指定驗證主機完成正常 DNS 登入、時間窗、多頁查詢，以及明確標示為 client-side 的精確 domain／qname、qtype、rcode 比對。指定網域搜尋無命中，不能據此證明 server-side 精確語意。舊 rtype filter 不能可靠代替 qtype。完整 snapshot／總數保證仍未知，complete 保持 false。實驗室 HTTP 回傳 HTTPS port 錯誤，切換 HTTPS 待明確授權。
 
 測試：`python -m unittest discover -v`。
+
+## Chatbox MCP 接入
+
+新增 stdio MCP adapter，補上 Skill 安裝不會自動註冊 tools 的缺口。預設四個唯讀工具，參數先驗證再執行。Windows 可透過 SSH 使用 Linux 的秘密設定，無須複製 DNS 密碼或安裝本機 Python。請參閱 [設定與驗收](docs/CHATBOX_MCP_SETUP.zh-TW.md)。

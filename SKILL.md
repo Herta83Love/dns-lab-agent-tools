@@ -44,3 +44,7 @@ For detailed recovery and error behavior, read [docs/V3_AGENT_RECOVERY.md](docs/
 ## Repository integrity
 
 Read [tool-manifest.json](tool-manifest.json) when verifying the contract version and source SHA-256. The canonical implementation is `agent/dns_lab_tools.py`; `agent/dns_lab_config.example.json` contains placeholders only and must never replace the protected deployment configuration.
+
+## Explicit MCP binding
+
+Chatbox does not register Python functions merely by loading this Skill. Operators can configure the stdio MCP adapter using [setup instructions](docs/CHATBOX_MCP_SETUP.zh-TW.md) and [Windows settings](examples/chatbox-mcp-windows.json). Use the actual runtime tools/list names and schemas; names may have a server prefix. If no corresponding context tool exists, stop with TOOLS_NOT_REGISTERED. The adapter exposes four read-only tools by default; synthetic traffic is not exposed. Do not install or configure a transport through model-initiated shell fallback.

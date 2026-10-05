@@ -1,0 +1,26 @@
+{
+  "input_report_sha256": "7d4e42eba04563a72595d17f7c46da404eca2fd86a86b8c8bcced197b845779f",
+  "diagnosis": [
+    "Chatbox function binding absent; no evidence of VLLM inference failure",
+    "Reported export arguments violate canonical schema"
+  ],
+  "unit_security_tests": 48,
+  "official_sdk_stdio_smoke": "PASS",
+  "ssh_gateway_initialize_list_context": "PASS",
+  "exposed_tools": 4,
+  "device_requests": 0,
+  "device_writes": 0,
+  "vllm_services_modified": false,
+  "windows_chatbox_end_to_end": "pending configuration and Windows SSH key availability",
+  "deployment_root": "/home/jackie_tsai/.local/share/dns-lab-agent-tools/mcp-binding-20261005-v1",
+  "output_sha256": {
+    "agent/mcp_server.py": "b7d7693e68c9db0336beee46c1d391ee2ee87f3020f87dcbebaeeb06389ee998",
+    "requirements-mcp.lock.txt": "3b3bc55e87614a7a15509bbf3e68b5c1c79f0c8b72e791154fa09893694ba01e",
+    "examples/chatbox-mcp-windows.json": "8b2a0cf0c21a43a4674fff9e683215952184028b3d22c53a45f2a3d55c897825",
+    "scripts/test_mcp_transport.py": "23dd7d5223eca387435413915f3a7eff2f4661ee199d264b6dd1338c4b20d430"
+  },
+  "sources": [
+    "https://docs.chatboxai.app/guides/mcp",
+    "https://github.com/modelcontextprotocol/python-sdk"
+  ]
+}

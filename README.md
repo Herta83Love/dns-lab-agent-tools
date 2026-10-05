@@ -205,3 +205,7 @@ python -m unittest -v tests.test_dns_lab_tools
 - 敏感執行期輸出已由 `.gitignore` 排除。
 
 更完整的設定方式請參閱[部署文件](docs/DEPLOYMENT_V1.md)與 [V2 Profile／篩選功能更新](docs/V2_UPDATE.md)。
+
+## Chatbox MCP binding
+
+A Skill installation does not register function tools. `agent.mcp_server` provides an explicit stdio MCP binding, defaulting to four read-only legacy tools with strict schema validation. Keep credentials on the Linux execution host and connect Windows Chatbox via SSH; no local Python or DNS secrets are required. Install `requirements-mcp.txt` in an isolated environment. See [setup and acceptance checks](docs/CHATBOX_MCP_SETUP.zh-TW.md). No VLLM restart or device write is involved.

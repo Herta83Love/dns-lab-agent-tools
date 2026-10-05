@@ -4,7 +4,7 @@
 
 ## 工具未註冊時立刻停止
 
-先看這個 session 的 function tool 清單。沒有 `lab_dns_get_context` 時，立刻停止並回報 `error_code=TOOLS_NOT_REGISTERED`。
+先看這個 session 的 function tool 清單。沒有 `lab_dns_get_context` 或 MCP 清單中明確對應它的帶前綴名稱時，立刻停止並回報 `error_code=TOOLS_NOT_REGISTERED`。
 
 此時不要讀 `agent/dns_lab_tools.py`，不要搜尋 `dns_lab_config.json`、`lab-dns.secret`、憑證指紋或家目錄，也不要安裝 Python、寫平台 shim、用 shell／curl／瀏覽器，或因為 `source_sha256` 與舊 manifest 不同就改模組。`tool-manifest.json` 的指紋會跟原始碼一起發布；runtime 不會因為指紋不同而拒絕載入。
 
@@ -73,3 +73,7 @@ lab_dns_get_context
 ## Secrets
 
 正式密碼只存在部署主機的 mode-0600 secret file，由工具內部讀取。Repository 不包含正式密碼。若在聊天、命令、報告或 Git history 看見明文 credential，停止使用並要求人工輪替。
+
+## Operator integration repair
+
+操作者可依 [MCP 設定文件](docs/CHATBOX_MCP_SETUP.zh-TW.md) 安裝明確的 stdio binding。Skill 不會自行註冊 tools。Agent 必須以會話實際提供的 MCP tool 名稱與 inputSchema 呼叫；MCP server 名稱可能造成前綴。沒有已註冊工具時仍須停止，不自行建立連線替代。報告中的 device、time_window、include_payload 不是 lab_dns_export_logs 的有效參數。
