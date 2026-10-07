@@ -10,7 +10,7 @@
 
 查詢要求含時區的起訖時間，未驗證的 filter 會拒絕。分頁支援 page、offset、cursor、next token；必須有經驗證的穩定 snapshot 與一致總數，才能宣告完整。提供可設定的筆數、頁數、時間、容量限制與續傳 checkpoint。JSON/JSONL/CSV 匯出建立新目錄及 SHA-256 manifest，避免覆寫原始資料。
 
-完整設定、錯誤與限制請讀 [工具合約](skills/dns-security-api-tools/references/contract.md)，Agent 操作請讀 [Skill](skills/dns-security-api-tools/SKILL.md)。已在指定驗證主機完成正常 DNS 登入、時間窗、多頁查詢，以及明確標示為 client-side 的精確 domain／qname、qtype、rcode 比對。指定網域搜尋無命中，不能據此證明 server-side 精確語意。舊 rtype filter 不能可靠代替 qtype。完整 snapshot／總數保證仍未知，complete 保持 false。實驗室 HTTP 回傳 HTTPS port 錯誤，切換 HTTPS 待明確授權。
+完整設定、錯誤與限制請讀 [工具合約](skills/dns-security-api-tools/references/contract.md)，Agent 操作請讀 [Skill](skills/dns-security-api-tools/SKILL.md)。已在指定驗證主機完成正常 DNS 登入、時間窗、多頁查詢，以及明確標示為 client-side 的精確 domain／qname、qtype、rcode 比對。指定網域搜尋無命中，不能據此證明 server-side 精確語意。舊 rtype filter 不能可靠代替 qtype。完整 snapshot／總數保證仍未知，complete 保持 false。實驗室管理 API 已沿用受控憑證 pin 的 HTTPS。
 
 測試：`python -m unittest discover -v`。
 
@@ -20,3 +20,6 @@
 
 
 Top Reports (contract 3.2): use `lab_dns_get_top_report_capabilities`, then `lab_dns_get_top_report` for hardware load or DNS rankings. Respect ready/stale/no_data/pending and delivery_complete; never infer zero from missing data. [Usage / 使用說明](docs/TOP_REPORTS.md).
+
+
+Contract 3.3 / package 4.1.0: reviewed JSONL manifest traffic is available through explicit MCP `--allow-manifest-traffic` (ten tools). Use plan → exact SHA-bound human approval → run → traffic status → exact Log reconciliation. Default dry-run; no replay after interruption; fixed 172.16.30.222:53 target, ≤0.5 QPS, ≤500 selected queries, ≥300-second cooldown, fresh CPU/memory/Log preflight. Source artifacts stay read-only, class mapping is fixed, training_ready remains false. [Deployment, lineage and recovery / 部署與操作](docs/MANIFEST_TRAFFIC.md).

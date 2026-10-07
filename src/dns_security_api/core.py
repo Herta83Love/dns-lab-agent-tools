@@ -15,7 +15,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-VERSION = '4.0.0'
+VERSION = '4.1.0'
 NORMAL = 'https://192.168.10.150:1606'
 LAB = 'http://172.16.30.209:1606'
 SECRET = re.compile(r'password|passwd|cookie|authorization|csrf|token|secret|session', re.I)

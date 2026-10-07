@@ -1,3 +1,5 @@
+> Historical v1 deployment reference. Current deployment/config/token flow is [contract 3.3](MANIFEST_TRAFFIC.md); do not copy this archived installation into production.
+
 # VLLM Agent DNS Lab Tools Deployment
 
 **Date:** 2026-10-01 (Asia/Taipei)  
@@ -110,10 +112,10 @@ After the Agent returns `plan_id`, `plan_sha256`, and `expires_at`, review the p
 ```text
 cd /home/jackie_tsai/Herta-Chat
 /home/jackie_tsai/.conda/envs/herta_train/bin/python \
-  -m agent.approve_dns_lab_plan <plan_id>
+  -m agent.approve_dns_lab_plan <plan_id> --token-file /absolute/private/new-approval-token.secret
 ```
 
-The command prints one token. Give it to the Agent with the exact plan ID when asking it to apply/run the plan. Only the token SHA-256 is stored; it cannot approve another plan or be reused.
+The command saves the token in a new private file and never prints it. Supply it through a protected operator input channel, keeping it out of chat/logs/Git. Only the token SHA-256 is stored; it cannot approve another plan or be reused.
 
 ## Usage examples
 

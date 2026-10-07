@@ -1,6 +1,6 @@
 {
   "project": "dns-lab-agent-tools",
-  "contract_version": "3.2",
+  "contract_version": "3.3",
   "release_date": "2026-10-07",
   "entrypoint": "agent.dns_lab_tools",
   "definitions_symbol": "DNS_LAB_TOOL_DEFINITIONS",
@@ -15,7 +15,11 @@
     "lab_dns_plan_synthetic_traffic",
     "lab_dns_run_synthetic_traffic_plan",
     "lab_dns_get_top_report_capabilities",
-    "lab_dns_get_top_report"
+    "lab_dns_get_top_report",
+    "lab_dns_plan_manifest_traffic",
+    "lab_dns_run_manifest_traffic_plan",
+    "lab_dns_get_traffic_plan_status",
+    "lab_dns_reconcile_manifest_logs"
   ],
   "required_first_tool": "lab_dns_get_context",
   "forbidden_fallbacks": [
@@ -26,10 +30,22 @@
     "legacy_forward_mgr"
   ],
   "source_sha256": {
-    "agent/dns_lab_tools.py": "3239e7e332ec8c735520480cf2bdd80d546eb5fe6e58144a9be48bbae7acaa7b",
-    "agent/approve_dns_lab_plan.py": "ec368a5bfc5ab1ec3fd93e24c51dd50ba4e098095333596afa165687965c0648",
-    "agent/dns_lab_config.example.json": "c2d8e65bdcb6a91f21861f944a600218011c3010ea8e6b98f4aa97abc7d0b8ee",
+    "agent/dns_lab_tools.py": "28b663a1f9f5d5d83d5862fddcc9f62f79d3e0fd3461c274d6cefad33510c235",
+    "agent/approve_dns_lab_plan.py": "806f5243125c5017f3e3cbb040f3fb5b713435bd22a7babd85bade8c710a1b67",
+    "agent/dns_lab_config.example.json": "41c36932870bf0b74b38f07479ed3cb55180a95c79424d76305ab83a4338d36c",
     "agent/top_reports.py": "8f90090fe80d432d0281cf22f768d72e55299432c970a418e5df578b4ccdded4",
-    "agent/mcp_server.py": "17fb92e63f120c89f1a59f94f42e12769d1c2f6df9d69b96b433e41fe72b23f2"
+    "agent/mcp_server.py": "5e4dd87f9547cfee825bd63b0f170c7491c4b3948dfc95097173a3c4af90909b",
+    "agent/manifest_traffic.py": "0c0cfc20e0da0999945be3abc4065bd021bfc372349a430775a56b498645b0aa",
+    "agent/manifest_worker.py": "5ee1a98ad5c8470bcd3121457caf12d44b91812cedcd2e172186db80f57a52ba",
+    "agent/log_exports.py": "1e905d4e97c5641f58fe368ad9f695d6ebc6cb74a374e9e96d77549aa1ace6bf",
+    "scripts/import_reviewed_manifest.py": "f13a35aafa33a40874a3cdbb6715448d6ce1babc4211d4be48ed20fc83286392",
+    "scripts/deploy_runtime.py": "01a6dc861808c0f3649922a76c676a8e178df6dfe29e862322ae71c0362758f4",
+    "scripts/deploy_acceptance.py": "eb8c07ab9cca95ce152d1aaf0ec8f9bb104ba981b3edcc945ab28892a07aaa6a"
+  },
+  "mcp_binding": {
+    "default_read_only_count": 6,
+    "manifest_traffic_flag": "--allow-manifest-traffic",
+    "manifest_enabled_count": 10,
+    "legacy_synthetic_traffic_exposed": false
   }
 }

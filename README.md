@@ -12,7 +12,7 @@ The new profile-driven API package is in `src/dns_security_api`; legacy tools re
 
 The new package provides authentication/logout, read-only discovery evidence, strict server-filter queries, page/offset/cursor pagination, checkpoint resume, JSON/JSONL/CSV manifests and approved forward previews/apply/rollback. Normal DNS is read-only; writes require the exact laboratory URL, enabled lab profile and explicit approval of the plan SHA-256. TLS verification is mandatory; self-signed devices require a trusted CA file or a per-client certificate pin from a trusted source. Secrets remain in environment variables or mode-0600 JSON/password-text files; sessions stay in memory.
 
-Completeness requires a vendor-verified stable snapshot and matching total. Unknown filters fail instead of widening a query. Example profiles are deliberately unconfigured. The verified Sentry adapter supports same-origin login redirects, Unix-second time bounds, nested filter encoding and explicit exact client-side filters. Custom filter expressions and streaming export remain unsupported. Normal-device pinned login, multi-page queries and client-side filters have passed read-only checks on the authorized host. Server exact-domain/qtype/rcode guarantees and complete-export guarantees remain unverified. Lab HTTP requires HTTPS; protocol switching awaits authorization. No scheduling, datasets, models or traffic generators are added. Run `python -m unittest discover -v`.
+Completeness requires a vendor-verified stable snapshot and matching total. Unknown filters fail instead of widening a query. Example profiles are deliberately unconfigured. The verified Sentry adapter supports same-origin login redirects, Unix-second time bounds, nested filter encoding and explicit exact client-side filters. Custom filter expressions and streaming export remain unsupported. Normal-device pinned login, multi-page queries and client-side filters have passed read-only checks on the authorized host. Server exact-domain/qtype/rcode guarantees and complete-export guarantees remain unverified. Lab management uses pinned HTTPS. No scheduling, Dataset/model changes or new payload generators are added; reviewed manifest execution is explicitly gated. Run `python -m unittest discover -v`.
 
 ## English
 
@@ -41,15 +41,9 @@ All appliance errors carry a stable error code, retry guidance, and a next actio
 
 ## Installation
 
-Copy the module into the Agent package:
+Use the atomic deployment workflow in [MANIFEST_TRAFFIC.md](docs/MANIFEST_TRAFFIC.md). It installs all adjacent modules, locked dependencies and protected production configuration together, then verifies MCP tools/list before selecting the runtime. Do not copy only the canonical module or rename the placeholder config into production. Credentials remain on the Linux gateway; Windows callers connect through SSH.
 
-```bash
-cp agent/dns_lab_tools.py /path/to/agent/dns_lab_tools.py
-cp agent/approve_dns_lab_plan.py /path/to/agent/approve_dns_lab_plan.py
-cp agent/dns_lab_config.example.json /path/to/agent/dns_lab_config.json
-```
-
-Edit the configuration and create its referenced secret file with mode `0600`. On Windows, install CPython 3.10 or newer (the Microsoft Store `python` alias is not an interpreter) and give that secret an owner-only NTFS ACL; POSIX mode bits are not a reliable privacy check there. The module loads without `fcntl`. An optional absolute `workspace_root` in the protected config selects the plan/export directory. None of this registers the tools: the agent runtime still has to load `DNS_LAB_TOOL_DEFINITIONS` and `execute_dns_lab_tool`.
+For a separately managed function registry:
 
 Register the tools in the existing registry:
 
@@ -74,14 +68,14 @@ Add a named entry under `profiles`; no Python rewrite is required. Each profile 
 
 `lab_dns_export_logs` supports `domains`, `exclude_domains`, `qtypes`, `actions`, `source_ips`, `categories`, and `result_terms`.
 
-There is no fixed time-window or page-count limit. Pagination ends when fewer than 2,500 records are returned. Export-size, free-space, and repeated-page guards remain active.
+Exports default to at most 100 pages and 250,000 rows. A terminal short page establishes delivery only; snapshot completeness stays unverified. Partial pages survive request/storage/page-limit failures.
 
 ## Human approval
 
 Forward changes and synthetic traffic require preview plus a human-generated token:
 
 ```bash
-python -m agent.approve_dns_lab_plan <plan_id>
+python -m agent.approve_dns_lab_plan <plan_id> --token-file /absolute/private/new-approval-token.secret
 ```
 
 The token is bound to one plan, stored only as SHA-256, expires with the plan, and cannot be reused.
@@ -136,15 +130,7 @@ lab_dns_run_synthetic_traffic_plan
 
 ### 安裝方式
 
-將工具模組複製到現有 Agent 套件：
-
-```bash
-cp agent/dns_lab_tools.py /path/to/agent/dns_lab_tools.py
-cp agent/approve_dns_lab_plan.py /path/to/agent/approve_dns_lab_plan.py
-cp agent/dns_lab_config.example.json /path/to/agent/dns_lab_config.json
-```
-
-編輯設定檔，並建立設定檔所引用的機密檔案；機密檔案權限應設為 `0600`。在 Windows 上請安裝 CPython 3.10 以上（Microsoft Store 的 `python` 別名不是直譯器），並把機密檔設成擁有者專用的 NTFS ACL；那裡的 POSIX 權限位不可靠。模組不再在 import 時依賴 `fcntl`。受保護設定可加絕對路徑 `workspace_root` 來指定計畫與匯出目錄。這些都不會自動註冊工具，Agent runtime 仍須載入 `DNS_LAB_TOOL_DEFINITIONS` 與 `execute_dns_lab_tool`。
+請使用 [原子部署流程](docs/MANIFEST_TRAFFIC.md)，一起安裝所有相鄰模組、鎖定依賴與 0600 正式設定；tools/list 驗收通過後才切換 runtime。不得只複製 Python 主模組，或把 placeholder 設定當成正式設定。秘密留在 Linux 執行主機，Windows 透過 SSH 呼叫。
 
 在既有的工具註冊表中加入：
 
@@ -177,14 +163,14 @@ def execute_tool(name: str, arguments: dict) -> dict:
 - `categories`：分類
 - `result_terms`：結果關鍵字
 
-工具沒有固定的查詢時間範圍或頁數上限。當單頁回傳少於 2,500 筆時停止分頁；匯出容量、磁碟剩餘空間及重複頁面等保護機制仍會生效。
+Log 匯出預設最多 100 頁／250,000 筆；可在工具 schema 範圍內調整。少於 2,500 筆的末頁只代表 delivery 結束；snapshot／交易識別尚未證實，completeness_verified 保持 false。容量、空間、重複頁面或請求失敗時保留已取得頁面。
 
 ### 人工核准
 
 修改 Forward 或產生合成流量時，必須先預覽操作計畫，再由人員產生核准 Token：
 
 ```bash
-python -m agent.approve_dns_lab_plan <plan_id>
+python -m agent.approve_dns_lab_plan <plan_id> --token-file /absolute/private/new-approval-token.secret
 ```
 
 Token 只綁定單一操作計畫，系統僅保存其 SHA-256；Token 會隨計畫到期，且不能重複使用。
@@ -212,3 +198,6 @@ A Skill installation does not register function tools. `agent.mcp_server` provid
 
 
 Top Reports (contract 3.2): use `lab_dns_get_top_report_capabilities`, then `lab_dns_get_top_report` for hardware load or DNS rankings. Respect ready/stale/no_data/pending and delivery_complete; never infer zero from missing data. [Usage / 使用說明](docs/TOP_REPORTS.md).
+
+
+Contract 3.3 / package 4.1.0: reviewed JSONL manifest traffic is available through explicit MCP `--allow-manifest-traffic` (ten tools). Use plan → exact SHA-bound human approval → run → traffic status → exact Log reconciliation. Default dry-run; no replay after interruption; fixed 172.16.30.222:53 target, ≤0.5 QPS, ≤500 selected queries, ≥300-second cooldown, fresh CPU/memory/Log preflight. Source artifacts stay read-only, class mapping is fixed, training_ready remains false. [Deployment, lineage and recovery / 部署與操作](docs/MANIFEST_TRAFFIC.md).

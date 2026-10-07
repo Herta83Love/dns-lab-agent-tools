@@ -31,7 +31,7 @@ CONFIG_PATH = Path(__file__).with_name("dns_lab_config.json")
 AUDIT = ROOT / "audit.jsonl"
 PLANS = ROOT / "plans"
 EXPORTS = ROOT / "exports"
-TOOL_CONTRACT_VERSION = "3.2"
+TOOL_CONTRACT_VERSION = "3.3"
 FORWARD_API_SCHEMA_VERSION = "isafer-domain-route-v2.4-nested"
 
 AGENT_RECOVERY_RULES = [
@@ -298,6 +298,7 @@ def _public_profile(name, profile):
 
 def _plan_summary(path):
     plan=json.loads(path.read_text())
+    if plan.get("kind")=="manifest_traffic":return _manifest_traffic.plan_summary(_API,path)
     approval=path.with_name(f"{plan['plan_id']}.approval.json")
     expired=_now()>dt.datetime.fromisoformat(plan["expires_at"])
     if plan.get("used"):
@@ -311,7 +312,7 @@ def _plan_summary(path):
         next_action="Ask the human operator for the one-time token, then call the matching apply/run tool once."
     else:
         state="awaiting_human_approval"
-        next_action=f"Human runs: python -m agent.approve_dns_lab_plan {plan['plan_id']}"
+        next_action=f"Human runs: python -m agent.approve_dns_lab_plan {plan['plan_id']} --token-file /absolute/private/new-approval-token.secret"
     return {
         "plan_id": plan["plan_id"],
         "kind": plan["kind"],
@@ -323,6 +324,28 @@ def _plan_summary(path):
         "next_action": next_action,
     }
 
+
+class _ApiProxy:
+    def __getattr__(self,name):return globals()[name]
+_API=_ApiProxy()
+
+def runtime_identity(cfg=None):
+    cfg=cfg or _config()
+    runtime=Path(__file__).resolve().parent.parent
+    metadata=runtime/"runtime-metadata.json"
+    commit=None
+    if metadata.is_file():
+        try:commit=json.loads(metadata.read_text()).get("git_commit")
+        except (OSError,ValueError):pass
+    elif (runtime/".git").exists():
+        try:commit=subprocess.check_output(["git","-C",str(runtime),"rev-parse","HEAD"],stderr=subprocess.DEVNULL,timeout=2,text=True).strip()
+        except (OSError,subprocess.SubprocessError):pass
+    if not isinstance(commit,str) or not re.fullmatch("[a-f0-9]{40}",commit):commit=None
+    # Fingerprint only explicit non-secret policy fields. Never hash credentials.
+    public={k:cfg.get(k) for k in ("default_profile","workspace_root","manifest_root","allowed_forward_suffixes","allowed_forward_networks","max_traffic_queries","max_traffic_qps","max_export_bytes","min_free_bytes","plan_ttl_seconds","log_identity")}
+    public["targets"]={name:{k:p.get(k) for k in ("base_url","traffic_dns_server","traffic_dns_port","allow_forward_writes")} for name,p in cfg.get("profiles",{}).items()}
+    source_fingerprint=_sha(_canonical({name:_sha((runtime/"agent"/name).read_bytes()) for name in ("dns_lab_tools.py","top_reports.py","manifest_traffic.py","manifest_worker.py","log_exports.py","mcp_server.py") if (runtime/"agent"/name).is_file()}).encode())
+    return {"source_fingerprint":source_fingerprint,"runtime_absolute_path":str(runtime),"module_absolute_path":str(Path(__file__).resolve()),"git_commit":commit,"tool_contract_version":TOOL_CONTRACT_VERSION,"config_presence":CONFIG_PATH.is_file(),"config_path":str(CONFIG_PATH.resolve()),"config_fingerprint":_sha(_canonical(public).encode()),"config_fingerprint_scope":"non-secret policy and targets only","deprecated":(runtime/"DEPRECATED.json").exists()}
 
 def _context(profile_name=None):
     cfg=_config()
@@ -341,6 +364,9 @@ def _context(profile_name=None):
             if len(recent)>=10: break
     return {
         "tool_contract_version": TOOL_CONTRACT_VERSION,
+        "runtime":runtime_identity(cfg),
+        "mcp_binding":{"active":bool(globals().get("_MCP_ENABLED_TOOLS")),"registered_tools":globals().get("_MCP_ENABLED_TOOLS",[])},
+        "manifest_traffic": {"enabled_in_canonical":True,"mcp_requires_flag":"--allow-manifest-traffic","manifest_root":str(Path(cfg.get("manifest_root",ROOT/"manifests"))),"target_ip":"172.16.30.222","target_port":53,"execution_host_requirement":"POSIX gateway; Windows callers use SSH MCP","max_queries":500,"qps_max":0.5,"default_dry_run":True,"cooldown_seconds_min":300,"approved_manifest_only":True,"no_auto_replay":True},
         "top_reports": {
             "capabilities_tool": "lab_dns_get_top_report_capabilities",
             "query_tool": "lab_dns_get_top_report",
@@ -375,7 +401,7 @@ def _context(profile_name=None):
         "recovery_rules": AGENT_RECOVERY_RULES,
         "known_limitations": cfg.get("known_limitations", []),
         "recent_plans": recent,
-        "recommended_first_read": "Call lab_dns_get_forwarders for current device state before planning a change.",
+        "recommended_first_read": "Choose the registered workflow: Top Reports for load, manifest plan for reviewed traffic, or get_forwarders before forward changes.",
     }
 
 class _PinnedConnection(http.client.HTTPSConnection):
@@ -412,14 +438,19 @@ class LabClient:
         xsrf=next((urllib.parse.unquote(c.value) for c in self.cookies if c.name=="XSRF-TOKEN"),None)
         if xsrf: headers["X-XSRF-TOKEN"]=xsrf
         req=urllib.request.Request(self.cfg["base_url"]+path,data=data,headers=headers,method=method)
-        with self.opener.open(req,timeout=self._timeout()) as r:return r.status,dict(r.headers),r.read()
+        with self.opener.open(req,timeout=self._timeout()) as r:
+            raw=r.read(8*1024*1024+1)
+            if len(raw)>8*1024*1024:raise DNSLabToolError("RESPONSE_LIMIT","Device response exceeded bounded read size")
+            return r.status,dict(r.headers),raw
     def login(self):
         _,_,page=self.request("/login")
         match=re.search(rb'name="_token"\s+value="([^"]+)"',page)
         if not match: raise RuntimeError("lab DNS CSRF token missing")
         form=urllib.parse.urlencode({"_token":match.group(1).decode(),"account":self.cfg["account"],"password":self.password}).encode()
         req=urllib.request.Request(self.cfg["base_url"]+"/login",data=form,headers={"Content-Type":"application/x-www-form-urlencoded"})
-        with self.opener.open(req,timeout=self._timeout()) as r: body=r.read()
+        with self.opener.open(req,timeout=self._timeout()) as r:
+            body=r.read(8*1024*1024+1)
+            if len(body)>8*1024*1024:raise DNSLabToolError("RESPONSE_LIMIT","Login response exceeded bounded read size")
         self.password=""
         if b'name="account"' in body: raise RuntimeError("lab DNS login failed")
 
@@ -560,6 +591,11 @@ def execute_dns_lab_tool(name, args=None):
 
 def _execute_dns_lab_tool(name, args):
     cfg=_config()
+    if name in {d["function"]["name"] for d in _manifest_traffic.DEFINITIONS}:
+        try:return _manifest_traffic.dispatch(_API,name,args)
+        except _manifest_traffic.TrafficError as error:
+            raise DNSLabToolError(error.code,"Manifest traffic guard rejected the operation",next_action="Stop and use traffic plan status. Never replay attempted queries; recovery requires a new reviewed session and approved plan.") from None
+    if name=="lab_dns_export_logs":return _log_exports.export(_API,args)
     if name in {"lab_dns_get_top_report", "lab_dns_get_top_report_capabilities"}:
         top_reports=_top_reports
         profile_name=args.get("dns_profile",cfg["default_profile"])
@@ -576,7 +612,7 @@ def _execute_dns_lab_tool(name, args):
     if name=="lab_dns_get_plan_status":
         plan_id=str(args.get("plan_id","")).strip()
         if plan_id:
-            if not re.fullmatch(r"(?:forward|traffic)-[A-Za-z0-9T-]+",plan_id):
+            if not re.fullmatch(r"(?:forward|traffic|manifest)-[A-Za-z0-9T-]+",plan_id):
                 raise DNSLabToolError("INVALID_PLAN_ID","plan_id format is invalid",next_action="Call lab_dns_get_context to recover recent valid plan IDs.")
             path=PLANS/f"{plan_id}.json"
             if not path.is_file():
@@ -589,38 +625,6 @@ def _execute_dns_lab_tool(name, args):
     _,profile=_profile(profile_name)
     if name=="lab_dns_get_forwarders":
         values=[_sanitized_forward(x) for x in _forwarders(profile_name=profile_name)]; _audit("forward_read",dns_profile=profile_name,count=len(values)); return {"dns_profile":profile_name,"count":len(values),"forwarders":values,"next_action":"For changes, pass an exact current UUID to lab_dns_plan_forward_change. Do not call the appliance API directly."}
-    if name=="lab_dns_export_logs":
-        start=_parse_time(args["start_time"]); end=_parse_time(args["end_time"])
-        if end<=start: raise ValueError("log window must be positive")
-        if end>_now()-dt.timedelta(minutes=2): raise ValueError("end time must be at least 2 minutes in the past")
-        filters={}
-        if args.get("domains"): filters["qname"]={"field":"domain","reverse":1 if args.get("exclude_domains") else 0,"rule":[str(x).strip().rstrip(".").lower() for x in args["domains"]]}
-        if args.get("qtypes"): filters["rtype"]={"field":"type","reverse":0,"rule":[str(x).upper() for x in args["qtypes"]]}
-        if args.get("actions"):
-            codes={"Allow":[0,1],"Block":[2,3,4],"Truncate":[5],"Translate":[6]}; filters["caction"]={"field":"action","reverse":0,"rule":sum((codes[x] for x in args["actions"]),[])}
-        if args.get("source_ips"): filters["srcip"]={"field":"from","reverse":0,"rule":[str(x) for x in args["source_ips"]]}
-        if args.get("categories"): filters["category"]={"field":"category","reverse":0,"rule":[str(x) for x in args["categories"]]}
-        if args.get("result_terms"): filters["rdata"]={"field":"result","reverse":0,"rule":[str(x) for x in args["result_terms"]]}
-        client=LabClient(profile_name)
-        batch=f"{profile_name}-log-{start:%Y%m%dT%H%M%SZ}-{end:%Y%m%dT%H%M%SZ}-{uuid.uuid4().hex[:6]}"; out=EXPORTS/batch; out.mkdir(parents=True); os.chmod(out,0o700)
-        pages=[]; total=0; total_bytes=0; seen_page_hashes=set()
-        query=urllib.parse.urlencode({"start_time":int(start.timestamp()),"end_time":int(end.timestamp()),"filter":_canonical(filters)})
-        page=1
-        while True:
-            status,_,raw=client.request(f"/webApi/historylog/proxy/{page}?{query}"); rows=json.loads(raw)
-            if not isinstance(rows,list): raise RuntimeError("log API did not return a list")
-            page_sha=_sha(raw)
-            if page_sha in seen_page_hashes: raise RuntimeError("repeated page detected during unbounded pagination")
-            if total_bytes+len(raw)>cfg["max_export_bytes"]: raise RuntimeError("export byte guard triggered")
-            if _free_bytes(out)-len(raw)<cfg["min_free_bytes"]: raise RuntimeError("minimum free-space guard triggered")
-            path=out/f"page-{page:06d}.json"; path.write_bytes(raw); os.chmod(path,0o600)
-            pages.append({"page":page,"rows":len(rows),"sha256":page_sha}); seen_page_hashes.add(page_sha); total+=len(rows); total_bytes+=len(raw)
-            if len(rows)<2500: break
-            page+=1
-        manifest={"batch_id":batch,"dns_profile":profile_name,"start":start.isoformat(),"end":end.isoformat(),"filter":filters,"rows":total,"raw_bytes":total_bytes,"pages":pages,"partition":"lab_unlabeled_staging"}
-        mp=out/"manifest.json"; mp.write_text(json.dumps(manifest,indent=2,sort_keys=True)+"\n"); os.chmod(mp,0o600)
-        _audit("logs_exported",dns_profile=profile_name,batch_id=batch,rows=total,pages=len(pages),manifest_sha256=_sha(mp.read_bytes()))
-        return {"dns_profile":profile_name,"batch_id":batch,"rows":total,"pages":len(pages),"raw_bytes":total_bytes,"filter":filters,"manifest_sha256":_sha(mp.read_bytes()),"output":str(out),"partition":"lab_unlabeled_staging","next_action":"Validate schema, ownership, deduplication, labels and leakage outside this tool before any Dataset intake. Never treat this export as strong-labeled data."}
     if name=="lab_dns_plan_forward_change":
         if not profile.get("allow_forward_writes",False): raise ValueError("forward writes are disabled for this DNS profile")
         operation=args["operation"]; domain=_forward_domain(args["domain"]); current=_forwarders(profile_name=profile_name); uuid_value=str(args.get("uuid","")).strip()
@@ -630,7 +634,7 @@ def _execute_dns_lab_tool(name, args):
         payload={"dns_profile":profile_name,"operation":operation,"domain":domain,"uuid":uuid_value}
         if operation!="delete": payload.update({"primary":_forward_target(args.get("primary",""),cfg),"secondary":_forward_target(args.get("secondary",""),cfg),"recursive":bool(args.get("recursive",False)),"enabled":bool(args.get("enabled",True)),"precedance":4,"api_schema":FORWARD_API_SCHEMA_VERSION})
         result={**_write_plan("forward",payload,current),"preview":payload,"current_count":len(current)}
-        result["next_action"]=f"Human reviews this immutable preview and runs: python -m agent.approve_dns_lab_plan {result['plan_id']}. Then call lab_dns_apply_forward_plan once with the returned token."
+        result["next_action"]=f"Human reviews this immutable preview and runs: python -m agent.approve_dns_lab_plan {result['plan_id']} --token-file /absolute/private/new-approval-token.secret. Then call lab_dns_apply_forward_plan once with the human-provided token through a protected input channel."
         result["do_not"]= "Do not call curl/shell/browser APIs, change HTTP methods, or recreate the plan unless it expires or current state changes."
         return result
     if name=="lab_dns_apply_forward_plan":
@@ -673,7 +677,7 @@ def _execute_dns_lab_tool(name, args):
         if count>cfg["max_traffic_queries"] or qps>cfg["max_traffic_qps"]: raise ValueError("traffic limit exceeded")
         payload={"dns_profile":profile_name,"mode":args["mode"],"domain_suffix":suffix,"count":count,"qps":qps,"qtype":args["qtype"],"seed":int(args["seed"]),"server":profile["traffic_dns_server"],"port":profile["traffic_dns_port"]}
         result={**_write_plan("traffic",payload,{}),"preview":payload,"synthetic_only":True}
-        result["next_action"]=f"Human reviews this immutable preview and runs: python -m agent.approve_dns_lab_plan {result['plan_id']}. Then call lab_dns_run_synthetic_traffic_plan once with the returned token."
+        result["next_action"]=f"Human reviews this immutable preview and runs: python -m agent.approve_dns_lab_plan {result['plan_id']} --token-file /absolute/private/new-approval-token.secret. Then call lab_dns_run_synthetic_traffic_plan once with the human-provided token through a protected input channel."
         result["do_not"]="Do not replace this tool with shell/dig and do not use real files, credentials or user data as payload."
         return result
     if name=="lab_dns_run_synthetic_traffic_plan":
@@ -696,8 +700,10 @@ def _execute_dns_lab_tool(name, args):
         return {"completed":True,"plan_id":plan["plan_id"],"mode":p["mode"],"sent":p["count"],"ok":ok,"failed":failed,"synthetic_only":True,"next_action":"Export the exact capture window with lab_dns_export_logs, then run governance checks. This result alone is not label evidence."}
     raise DNSLabToolError("UNKNOWN_TOOL","Unknown DNS lab tool.",next_action="Call only the registered lab_dns_* tools. Start with lab_dns_get_context.")
 
-def approve_plan_cli(plan_id):
-    _secure_dirs(); path=PLANS/f"{plan_id}.json"
+def approve_plan_cli(plan_id,expected_sha256=None):
+    _config(); _secure_dirs()
+    if plan_id.startswith("manifest-"):return _manifest_traffic.approve(_API,plan_id,expected_sha256)
+    path=PLANS/f"{plan_id}.json"
     if not path.is_file(): raise FileNotFoundError("plan not found")
     plan=json.loads(path.read_text())
     if _now()>dt.datetime.fromisoformat(plan["expires_at"]): raise ValueError("plan expired")
@@ -714,3 +720,19 @@ else:
     _top_reports=_importlib_util.module_from_spec(_report_spec)
     _report_spec.loader.exec_module(_top_reports)
 DNS_LAB_TOOL_DEFINITIONS.extend(_top_reports.DEFINITIONS)
+
+# Adjacent modules are required in standalone deployments as well as packages.
+if __package__:
+    from . import manifest_traffic as _manifest_traffic
+    from . import log_exports as _log_exports
+else:
+    import sys as _sys
+    for _module_name,_filename in (("dns_lab_manifest_traffic","manifest_traffic.py"),("dns_lab_log_exports","log_exports.py")):
+        _spec=_importlib_util.spec_from_file_location(_module_name,Path(__file__).with_name(_filename))
+        _module=_importlib_util.module_from_spec(_spec);_sys.modules[_module_name]=_module;_spec.loader.exec_module(_module)
+        if _filename=="manifest_traffic.py":_manifest_traffic=_module
+        else:_log_exports=_module
+DNS_LAB_TOOL_DEFINITIONS.extend(_manifest_traffic.DEFINITIONS)
+for _definition in DNS_LAB_TOOL_DEFINITIONS:
+    if _definition["function"]["name"]=="lab_dns_export_logs":
+        _definition["function"]["parameters"]["properties"].update({"max_pages":{"type":"integer","minimum":1,"maximum":1000,"default":100},"max_rows":{"type":"integer","minimum":1,"maximum":2500000,"default":250000}})

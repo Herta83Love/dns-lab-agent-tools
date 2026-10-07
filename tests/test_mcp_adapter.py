@@ -19,3 +19,12 @@ class Tests(unittest.TestCase):
         fake.execute_dns_lab_tool.side_effect=RuntimeError('fixture-sensitive-value')
         r=dispatch(fake,{'test':{'type':'object'}},'test',{})
         self.assertNotIn('fixture-sensitive-value',str(r))
+
+class ManifestBindingTests(unittest.TestCase):
+    def test_manifest_binding_opt_in_is_distinct_from_legacy_traffic(self):
+        import agent.dns_lab_tools as legacy
+        from agent.mcp_server import definitions,TRAFFIC,READ_ONLY
+        enabled={f['name'] for f in definitions(legacy,allow_traffic=True)}
+        self.assertEqual(enabled,READ_ONLY|TRAFFIC)
+        self.assertNotIn('lab_dns_run_synthetic_traffic_plan',enabled)
+        self.assertEqual(len(definitions(legacy,allow_forward=True,allow_traffic=True)),12)

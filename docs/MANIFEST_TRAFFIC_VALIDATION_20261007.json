@@ -1,0 +1,86 @@
+{
+  "actual_traffic_sent": 0,
+  "config_mode": "0600",
+  "log": {
+    "api_reported_total": null,
+    "completeness_verified": false,
+    "delivery_complete": true,
+    "manifest_sha256": "0060e4a61555164a988f38fdfb5b271712214773c45bcb2c92d003f27261c159",
+    "pages": 1,
+    "rows": 99,
+    "candidate_identity_duplicate_rows": 98,
+    "duplicate_transaction_ids": null,
+    "identity_note": "Observed candidate identity field is not verified as a transaction ID; repeated values do not prove duplicate DNS events."
+  },
+  "report": {
+    "delivery_complete": true,
+    "reports": {
+      "cpu_us": {
+        "age_seconds": 305.717335,
+        "latest": 91.93,
+        "series_count": 1,
+        "status": "ready"
+      },
+      "memory": {
+        "age_seconds": 306.314414,
+        "latest": 56.62,
+        "series_count": 1,
+        "status": "ready"
+      }
+    },
+    "response_sha256": "a06e2e0fe0c712d24c9efddb7f816023eb040530ed4937ea589d9ecda9a7c28c"
+  },
+  "reviewed_queries": 18000,
+  "reviewed_sessions": 36,
+  "snapshot_stability_verified": false,
+  "source_modified": false,
+  "transaction_pairing_verified": false,
+  "verified_at": "2026-10-07T09:15:11.831296+00:00",
+  "gate": {
+    "error_code": "TRAFFIC_PREFLIGHT_LOAD_HIGH",
+    "evidence": {
+      "delivery_complete": true,
+      "historical_statistics": true,
+      "metrics": {
+        "cpu_us": {
+          "age_seconds": 353.489679,
+          "latest": 91.54,
+          "latest_time": "2026-10-07T09:15:00+00:00"
+        },
+        "memory": {
+          "age_seconds": 355.837025,
+          "latest": 56.48,
+          "latest_time": "2026-10-07T09:15:00+00:00",
+          "status": "ready"
+        }
+      },
+      "observed_at": "2026-10-07T09:20:55.839936+00:00",
+      "report_sha256": "256cff0de57cf1356b97f2432005f8cd8d7ef63078e6e0285046914b63135590"
+    },
+    "gate": "blocked",
+    "traffic_sent": 0
+  },
+  "unit_tests": 107,
+  "official_mcp_transport": "read-only 6 and explicit manifest 10 tested locally; remote SSH context/config/10 tools and path/schema rejection passed",
+  "traffic_execution": "Offline fake receiver/API only; no lab DNS packets sent",
+  "reviewed_source_hashes": {
+    "batch-manifest.json": "ee83e38cc1a82efd17e7937aac1082bab130aaa91f3364b278af7bc818d69a65",
+    "catalog.jsonl": "2e30c538e8a162da6e37f1121002ea8144ac4b1bf41db100f698998c65ad31d5",
+    "SHA256SUMS.txt": "72af8b3328df493b1680d5b9825dc02c14152561854a6aad93b17a1f1c1e9369"
+  },
+  "snapshot_and_pairing": "unverified; complete=false and training_ready=false",
+  "warmup": "three 30-query reviewed-prefix dry-run previews; actual plan IDs recorded in gateway acceptance after deployment",
+  "unit_coverage": [
+    "reviewed lineage hashes and exact original qnames",
+    "private bounded paths/symlinks/target/ANY rejection",
+    "immutable plans and SHA-bound single-use approval",
+    "private CLI token output",
+    "session locking/cooldown/new-session recovery",
+    "crash-before-receipt uncertain outcome/no automatic replay",
+    "freshness/high-load/missing-data preflight",
+    "fake UDP receiver and timeout",
+    "fake paginated API/partial retention/exact matching/duplicates/unknown identity",
+    "unverified snapshot prevents complete even when pairing succeeds",
+    "failed atomic deployment does not activate release"
+  ]
+}

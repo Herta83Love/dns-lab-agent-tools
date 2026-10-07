@@ -14,7 +14,7 @@
         "The canonical tool owns the verified nested iSafer forward payload; callers provide plan fields only.",
         "Forward changes accept any valid FQDN and port 1-65535; the destination IP must remain inside allowed_forward_networks."
       ],
-      "traffic_dns_server": "LAB_DNS_HOST",
+      "traffic_dns_server": "172.16.30.222",
       "traffic_dns_port": 53
     }
   },
@@ -24,8 +24,17 @@
     "invalid",
     "taipeinetworks.com"
   ],
-  "allowed_forward_networks": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
-  "allowed_forward_ports": [53, 1053, 5353, 5354],
+  "allowed_forward_networks": [
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16"
+  ],
+  "allowed_forward_ports": [
+    53,
+    1053,
+    5353,
+    5354
+  ],
   "max_export_bytes": 53687091200,
   "min_free_bytes": 10737418240,
   "max_traffic_queries": 500,
@@ -34,5 +43,17 @@
   "known_limitations": [
     "Raw exports are unlabeled staging and require separate governance.",
     "The tool does not start dnscat2/iodine services or transfer real payloads."
-  ]
+  ],
+  "manifest_root": "/absolute/private/dns_lab/manifests",
+  "workspace_root": "/absolute/private/dns_lab",
+  "log_identity": {
+    "qname_field": "qname",
+    "qtype_field": "qtype",
+    "transaction_id_field": "identity",
+    "timestamp_field": "qtime",
+    "source_ip_field": "srcip",
+    "response_rcode_field": "rcode",
+    "verified": false,
+    "row_is_paired_transaction": false
+  }
 }

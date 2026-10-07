@@ -22,6 +22,8 @@ TLS must use HTTPS and the existing protected profile certificate pin. HTTP on t
 Install `requirements-mcp.lock.txt` in the execution host's isolated environment. Copy **both** `agent/dns_lab_tools.py` and adjacent `agent/top_reports.py` when using the standalone canonical module; MCP additionally needs `agent/mcp_server.py`. The websocket-client dependency is mandatory for queries; capabilities reports readiness without contacting the device. Existing agent configuration must point to the new runtime explicitly; installing a Skill alone does not register these tools.
 
 Validated gateway runtime:
-`/home/jackie_tsai/.local/share/dns-lab-agent-tools/mcp-binding-20261007-v1`
+`/home/jackie_tsai/.local/share/dns-lab-agent-tools/current`
 
 Capability catalog comes from the device frontend. Live validation covers all seven system panels and the default selections in proxy/firewall/authority; other catalog combinations are frontend-discovered, not individually live-certified. UI offers seven-day windows; actual retention remains unverified. See [masked validation](TOP_REPORT_VALIDATION_20261007.json).
+
+Contract 3.3 requires all adjacent helper modules plus protected config; use the atomic [deployment workflow](MANIFEST_TRAFFIC.md), rather than copying only two modules.

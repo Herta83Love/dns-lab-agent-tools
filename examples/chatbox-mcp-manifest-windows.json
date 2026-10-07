@@ -1,0 +1,12 @@
+{
+  "name": "dns-lab-manifest-tools",
+  "command": "C:\\Windows\\System32\\OpenSSH\\ssh.exe",
+  "args": [
+    "-T",
+    "-o",
+    "BatchMode=yes",
+    "jackie_tsai@192.168.10.32",
+    "cd /home/jackie_tsai/.local/share/dns-lab-agent-tools/current && /home/jackie_tsai/.local/share/dns-lab-agent-tools/current/.venv/bin/python -m agent.mcp_server --config /home/jackie_tsai/.local/share/dns-lab-agent-tools/current/agent/dns_lab_config.json --allow-manifest-traffic"
+  ],
+  "env": {}
+}
