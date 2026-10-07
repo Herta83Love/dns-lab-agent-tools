@@ -6,7 +6,7 @@
     "-o",
     "BatchMode=yes",
     "jackie_tsai@192.168.10.32",
-    "cd /home/jackie_tsai/.local/share/dns-lab-agent-tools/mcp-binding-20261005-v1 && /home/jackie_tsai/.local/share/dns-lab-agent-tools/mcp-binding-20261005-v1/.venv/bin/python -m agent.mcp_server --config /home/jackie_tsai/Herta-Chat/agent/dns_lab_config.json"
+    "cd /home/jackie_tsai/.local/share/dns-lab-agent-tools/mcp-binding-20261007-v1 && /home/jackie_tsai/.local/share/dns-lab-agent-tools/mcp-binding-20261007-v1/.venv/bin/python -m agent.mcp_server --config /home/jackie_tsai/Herta-Chat/agent/dns_lab_config.json"
   ],
   "env": {}
 }

@@ -20,3 +20,6 @@ Forward workflow: read → plan → inspect diff and before hash → explicit ap
 After conversation compression reload the named profile and sanitized capability evidence, tool version and checkpoint. Never recover credentials from chat history. Use the preserved plan ID and hash for forward recovery; do not rebuild or replay a consumed plan.
 
 Minimal example: execute `dns_authenticate` with `{"profile":"lab","target":"http://172.16.30.209:1606"}` after configuring authentication. Success returns `{"ok":true,"result":{"authenticated":true,"mode":"json"},"tool_version":"4.0.0"}`. Errors return a code, retryable flag and next action; only retry the same read when instructed. See the contract for all interfaces and current limitations.
+
+
+Top Reports (contract 3.2): use `lab_dns_get_top_report_capabilities`, then `lab_dns_get_top_report` for hardware load or DNS rankings. Respect ready/stale/no_data/pending and delivery_complete; never infer zero from missing data. [Usage / 使用說明](../../docs/TOP_REPORTS.md).

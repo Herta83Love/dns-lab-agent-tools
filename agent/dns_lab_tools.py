@@ -31,7 +31,7 @@ CONFIG_PATH = Path(__file__).with_name("dns_lab_config.json")
 AUDIT = ROOT / "audit.jsonl"
 PLANS = ROOT / "plans"
 EXPORTS = ROOT / "exports"
-TOOL_CONTRACT_VERSION = "3.1"
+TOOL_CONTRACT_VERSION = "3.2"
 FORWARD_API_SCHEMA_VERSION = "isafer-domain-route-v2.4-nested"
 
 AGENT_RECOVERY_RULES = [
@@ -341,6 +341,13 @@ def _context(profile_name=None):
             if len(recent)>=10: break
     return {
         "tool_contract_version": TOOL_CONTRACT_VERSION,
+        "top_reports": {
+            "capabilities_tool": "lab_dns_get_top_report_capabilities",
+            "query_tool": "lab_dns_get_top_report",
+            "default_section": "system",
+            "read_only": True,
+            "caller_action": "Use capabilities then query; check delivery_complete and each report status. Missing or stale data does not establish zero load.",
+        },
         "forward_api_contract": {
             "schema_version": FORWARD_API_SCHEMA_VERSION,
             "device_ui_build_verified": "v2.4.0.2443028217-1",
@@ -387,26 +394,32 @@ class _PinnedHandler(urllib.request.HTTPSHandler):
         return self.do_open(factory,request)
 
 class LabClient:
-    def __init__(self,profile_name=None):
+    def __init__(self,profile_name=None,*,deadline=None):
+        self.deadline=deadline
         self.profile_name,self.cfg=_profile(profile_name)
         self.password=_read_private_secret(self.cfg["secret_file"])
         self.cookies=http.cookiejar.CookieJar()
         self.opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cookies),_PinnedHandler(self.cfg["certificate_sha256"]))
         self.login()
+    def _timeout(self):
+        if self.deadline is None: return 45
+        remaining=self.deadline-time.monotonic()
+        if remaining<=0: raise DNSLabToolError("TOP_REPORT_TIMEOUT","Top report deadline exceeded",retryable=True)
+        return min(45,remaining)
     def request(self,path,method="GET",body=None):
         headers={}; data=None
         if body is not None: data=_canonical(body).encode(); headers["Content-Type"]="application/json"
         xsrf=next((urllib.parse.unquote(c.value) for c in self.cookies if c.name=="XSRF-TOKEN"),None)
         if xsrf: headers["X-XSRF-TOKEN"]=xsrf
         req=urllib.request.Request(self.cfg["base_url"]+path,data=data,headers=headers,method=method)
-        with self.opener.open(req,timeout=45) as r:return r.status,dict(r.headers),r.read()
+        with self.opener.open(req,timeout=self._timeout()) as r:return r.status,dict(r.headers),r.read()
     def login(self):
         _,_,page=self.request("/login")
         match=re.search(rb'name="_token"\s+value="([^"]+)"',page)
         if not match: raise RuntimeError("lab DNS CSRF token missing")
         form=urllib.parse.urlencode({"_token":match.group(1).decode(),"account":self.cfg["account"],"password":self.password}).encode()
         req=urllib.request.Request(self.cfg["base_url"]+"/login",data=form,headers={"Content-Type":"application/x-www-form-urlencoded"})
-        with self.opener.open(req,timeout=45) as r: body=r.read()
+        with self.opener.open(req,timeout=self._timeout()) as r: body=r.read()
         self.password=""
         if b'name="account"' in body: raise RuntimeError("lab DNS login failed")
 
@@ -547,6 +560,17 @@ def execute_dns_lab_tool(name, args=None):
 
 def _execute_dns_lab_tool(name, args):
     cfg=_config()
+    if name in {"lab_dns_get_top_report", "lab_dns_get_top_report_capabilities"}:
+        top_reports=_top_reports
+        profile_name=args.get("dns_profile",cfg["default_profile"])
+        _,profile=_profile(profile_name)
+        if name=="lab_dns_get_top_report_capabilities":
+            return {**top_reports.capabilities(),"dns_profile":profile_name,"target":profile["base_url"]}
+        try:
+            return top_reports.query({**args,"dns_profile":profile_name},LabClient,_PinnedHandler)
+        except top_reports.ReportError as error:
+            raise DNSLabToolError(error.code,"Top Reports arguments or schema rejected",retryable=error.retryable,next_action="Call lab_dns_get_top_report_capabilities and use supported report combinations.") from None
+
     if name=="lab_dns_get_context":
         result=_context(args.get("dns_profile")); _audit("context_read",dns_profile=args.get("dns_profile")); return result
     if name=="lab_dns_get_plan_status":
@@ -680,3 +704,13 @@ def approve_plan_cli(plan_id):
     token=secrets.token_urlsafe(32); approval={"plan_id":plan_id,"plan_sha256":plan["plan_sha256"],"token_sha256":_sha(token.encode()),"approved_at":_now().isoformat(),"approved_by":getpass.getuser()}
     out=PLANS/f"{plan_id}.approval.json"; out.write_text(json.dumps(approval,indent=2,sort_keys=True)+"\n"); os.chmod(out,0o600); _audit("plan_human_approved",plan_id=plan_id,kind=plan["kind"])
     return token
+
+# Report tools are registered alongside canonical definitions, including MCP.
+if __package__:
+    from . import top_reports as _top_reports
+else:
+    import importlib.util as _importlib_util
+    _report_spec=_importlib_util.spec_from_file_location("dns_lab_top_reports",Path(__file__).with_name("top_reports.py"))
+    _top_reports=_importlib_util.module_from_spec(_report_spec)
+    _report_spec.loader.exec_module(_top_reports)
+DNS_LAB_TOOL_DEFINITIONS.extend(_top_reports.DEFINITIONS)

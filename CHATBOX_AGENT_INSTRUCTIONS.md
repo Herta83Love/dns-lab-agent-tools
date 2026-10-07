@@ -87,3 +87,6 @@ lab_dns_get_context
 ## Operator integration repair
 
 操作者可依 [MCP 設定文件](docs/CHATBOX_MCP_SETUP.zh-TW.md) 安裝明確的 stdio binding。Skill 不會自行註冊 tools。Agent 必須以會話實際提供的 MCP tool 名稱與 inputSchema 呼叫；MCP server 名稱可能造成前綴。沒有已註冊工具時仍須停止，不自行建立連線替代。報告中的 device、time_window、include_payload 不是 lab_dns_export_logs 的有效參數。
+
+
+Top Reports (contract 3.2): use `lab_dns_get_top_report_capabilities`, then `lab_dns_get_top_report` for hardware load or DNS rankings. Respect ready/stale/no_data/pending and delivery_complete; never infer zero from missing data. [Usage / 使用說明](docs/TOP_REPORTS.md).

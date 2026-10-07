@@ -208,4 +208,7 @@ python -m unittest -v tests.test_dns_lab_tools
 
 ## Chatbox MCP binding
 
-A Skill installation does not register function tools. `agent.mcp_server` provides an explicit stdio MCP binding, defaulting to four read-only legacy tools with strict schema validation. Keep credentials on the Linux execution host and connect Windows Chatbox via SSH; no local Python or DNS secrets are required. Install `requirements-mcp.txt` in an isolated environment. See [setup and acceptance checks](docs/CHATBOX_MCP_SETUP.zh-TW.md). No VLLM restart or device write is involved.
+A Skill installation does not register function tools. `agent.mcp_server` provides an explicit stdio MCP binding, defaulting to six read-only tools with strict schema validation. Keep credentials on the Linux execution host and connect Windows Chatbox via SSH; no local Python or DNS secrets are required. Install `requirements-mcp.txt` in an isolated environment. See [setup and acceptance checks](docs/CHATBOX_MCP_SETUP.zh-TW.md). No VLLM restart or device write is involved.
+
+
+Top Reports (contract 3.2): use `lab_dns_get_top_report_capabilities`, then `lab_dns_get_top_report` for hardware load or DNS rankings. Respect ready/stale/no_data/pending and delivery_complete; never infer zero from missing data. [Usage / 使用說明](docs/TOP_REPORTS.md).

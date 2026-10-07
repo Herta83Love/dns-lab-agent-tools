@@ -1,0 +1,124 @@
+{
+  "verified_at": "2026-10-07T04:40:04.916457+00:00",
+  "operation": "read-only reports plus authentication/subscription",
+  "cases": [
+    {
+      "section": "system",
+      "delivery_complete": true,
+      "error_code": null,
+      "reports": {
+        "cpu_us": {
+          "status": "ready",
+          "samples": 2,
+          "rows": null,
+          "series_count": 1
+        },
+        "cpu_lavg": {
+          "status": "ready",
+          "samples": 2,
+          "rows": null,
+          "series_count": 1
+        },
+        "memory": {
+          "status": "ready",
+          "samples": 2,
+          "rows": null,
+          "series_count": 1
+        },
+        "lps": {
+          "status": "ready",
+          "samples": 2,
+          "rows": null,
+          "series_count": 1
+        },
+        "qpm_rrm": {
+          "status": "ready",
+          "samples": 2,
+          "rows": null,
+          "series_count": 2
+        },
+        "hosts": {
+          "status": "ready",
+          "samples": 2,
+          "rows": null,
+          "series_count": 2
+        },
+        "disk": {
+          "status": "ready",
+          "samples": 2,
+          "rows": null,
+          "series_count": 1
+        }
+      },
+      "input_sha256": "6f176dd5c13afe83a71a90b5702a5919bd2d04bc972f18fbd43fb066d8e8d2ec",
+      "response_sha256": "71885bdff1c5e15455eec84914d7fc39d1d58c9687cf701f212a949fa159e9e4"
+    },
+    {
+      "section": "proxy",
+      "delivery_complete": true,
+      "error_code": null,
+      "reports": {
+        "query_name": {
+          "status": "ready",
+          "samples": 0,
+          "rows": 10,
+          "series_count": 0
+        },
+        "query_type": {
+          "status": "ready",
+          "samples": 0,
+          "rows": 5,
+          "series_count": 0
+        },
+        "response_code": {
+          "status": "ready",
+          "samples": 0,
+          "rows": 3,
+          "series_count": 0
+        }
+      },
+      "input_sha256": "83fa7d505ceea87d589fed391448ad00e1f9e9e6278550182fbba112874fc96c",
+      "response_sha256": "d070d20f2584e113007157eda8859b8a86690491742d89c04006b0870f92a20d"
+    },
+    {
+      "section": "firewall",
+      "delivery_complete": true,
+      "error_code": null,
+      "reports": {
+        "query_type": {
+          "status": "ready",
+          "samples": 0,
+          "rows": 5,
+          "series_count": 0
+        }
+      },
+      "input_sha256": "a689b8e76d424a8d9c71ac7f28d3f88d28b0ea6f6840f466678bc4cd06b0aa45",
+      "response_sha256": "6137647a8c744fe1af39cdc11cb266a5abd0a701b8c0b2e4ca98aabf8ae93143"
+    },
+    {
+      "section": "authority",
+      "delivery_complete": true,
+      "error_code": null,
+      "reports": {
+        "query_type": {
+          "status": "no_data",
+          "samples": 0,
+          "rows": 0,
+          "series_count": 0
+        }
+      },
+      "input_sha256": "8c70bd57fd3ff476d87a37db77c8d6fc2d1bf1fb594f97c8e2be13793ce8a5b1",
+      "response_sha256": "f53ff591d96015b430d92bc8848dd6a0d9856cfbc59aa78151aceb3b5b789d78"
+    }
+  ],
+  "unit_tests": 80,
+  "mcp_transport": "official SDK initialize/list/capabilities/system CPU passed; default six read-only tools",
+  "secret_scan": "pattern scan and actual lab credential comparison passed",
+  "tls": "HTTPS per-connection certificate pin, no global verification bypass",
+  "capability_permissions": {
+    "directory": "0700",
+    "file": "0600"
+  },
+  "source_timezone": "Asia/Taipei naive device timestamps normalized to UTC",
+  "catalog_validation": "frontend discovery; live verified report selections listed in cases"
+}

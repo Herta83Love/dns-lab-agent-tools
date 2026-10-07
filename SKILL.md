@@ -1,6 +1,6 @@
 ---
 name: dns-lab-agent-tools
-description: Operate authorized DNS security lab appliances through guarded lab_dns tools for forward inspection and approved changes, Proxy log export, and bounded synthetic DNS traffic. Use for DNS lab configuration, log collection, DGA/high-entropy sample generation, or recovery of interrupted DNS lab plans; do not use for arbitrary DNS infrastructure or unlabeled data promotion.
+description: Operate authorized DNS security lab appliances through guarded lab_dns tools for device load and Top Reports, forward inspection and approved changes, Proxy log export, and bounded synthetic DNS traffic. Use for DNS lab configuration, log collection, DGA/high-entropy sample generation, or recovery of interrupted DNS lab plans; do not use for arbitrary DNS infrastructure or unlabeled data promotion.
 metadata:
   short-description: Guarded DNS security lab operations
 ---
@@ -47,4 +47,7 @@ Read [tool-manifest.json](tool-manifest.json) when verifying the contract versio
 
 ## Explicit MCP binding
 
-Chatbox does not register Python functions merely by loading this Skill. Operators can configure the stdio MCP adapter using [setup instructions](docs/CHATBOX_MCP_SETUP.zh-TW.md) and [Windows settings](examples/chatbox-mcp-windows.json). Use the actual runtime tools/list names and schemas; names may have a server prefix. If no corresponding context tool exists, stop with TOOLS_NOT_REGISTERED. The adapter exposes four read-only tools by default; synthetic traffic is not exposed. Do not install or configure a transport through model-initiated shell fallback.
+Chatbox does not register Python functions merely by loading this Skill. Operators can configure the stdio MCP adapter using [setup instructions](docs/CHATBOX_MCP_SETUP.zh-TW.md) and [Windows settings](examples/chatbox-mcp-windows.json). Use the actual runtime tools/list names and schemas; names may have a server prefix. If no corresponding context tool exists, stop with TOOLS_NOT_REGISTERED. The adapter exposes six read-only tools by default; synthetic traffic is not exposed. Do not install or configure a transport through model-initiated shell fallback.
+
+
+Top Reports (contract 3.2): use `lab_dns_get_top_report_capabilities`, then `lab_dns_get_top_report` for hardware load or DNS rankings. Respect ready/stale/no_data/pending and delivery_complete; never infer zero from missing data. [Usage / 使用說明](docs/TOP_REPORTS.md).

@@ -16,4 +16,7 @@
 
 ## Chatbox MCP 接入
 
-新增 stdio MCP adapter，補上 Skill 安裝不會自動註冊 tools 的缺口。預設四個唯讀工具，參數先驗證再執行。Windows 可透過 SSH 使用 Linux 的秘密設定，無須複製 DNS 密碼或安裝本機 Python。請參閱 [設定與驗收](docs/CHATBOX_MCP_SETUP.zh-TW.md)。
+新增 stdio MCP adapter，補上 Skill 安裝不會自動註冊 tools 的缺口。預設六個唯讀工具，參數先驗證再執行。Windows 可透過 SSH 使用 Linux 的秘密設定，無須複製 DNS 密碼或安裝本機 Python。請參閱 [設定與驗收](docs/CHATBOX_MCP_SETUP.zh-TW.md)。
+
+
+Top Reports (contract 3.2): use `lab_dns_get_top_report_capabilities`, then `lab_dns_get_top_report` for hardware load or DNS rankings. Respect ready/stale/no_data/pending and delivery_complete; never infer zero from missing data. [Usage / 使用說明](docs/TOP_REPORTS.md).

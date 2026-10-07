@@ -6,7 +6,7 @@ try: import jsonschema
 except ImportError: jsonschema=None
 class Tests(unittest.TestCase):
     def test_default_readonly_and_no_traffic(self):
-        self.assertEqual({f['name'] for f in definitions(legacy)},{'lab_dns_get_context','lab_dns_get_plan_status','lab_dns_get_forwarders','lab_dns_export_logs'})
+        self.assertEqual({f['name'] for f in definitions(legacy)},{'lab_dns_get_context','lab_dns_get_plan_status','lab_dns_get_forwarders','lab_dns_export_logs','lab_dns_get_top_report','lab_dns_get_top_report_capabilities'})
         self.assertFalse(any('traffic' in f['name'] for f in definitions(legacy,True)))
     @unittest.skipUnless(jsonschema,'MCP optional dependency not installed')
     def test_report_arguments_rejected_before_execution(self):

@@ -7,7 +7,7 @@ import json
 import logging
 from pathlib import Path
 
-READ_ONLY = {'lab_dns_get_context','lab_dns_get_plan_status','lab_dns_get_forwarders','lab_dns_export_logs'}
+READ_ONLY = {'lab_dns_get_context','lab_dns_get_plan_status','lab_dns_get_forwarders','lab_dns_export_logs','lab_dns_get_top_report','lab_dns_get_top_report_capabilities'}
 FORWARD = {'lab_dns_plan_forward_change','lab_dns_apply_forward_plan'}
 
 def definitions(legacy, allow_forward=False):
@@ -24,7 +24,7 @@ def dispatch(legacy, schemas, name, arguments):
     from jsonschema import Draft202012Validator
     if name not in schemas: return {'error_code':'TOOL_NOT_ENABLED','retryable':False,'action':'stop_and_report'}
     if not isinstance(arguments,dict) or not Draft202012Validator(schemas[name]).is_valid(arguments):
-        return {'error_code':'INVALID_ARGUMENTS','retryable':False,'action':'stop_and_report','next_action':'Use the tools/list inputSchema; do not send device, time_window or include_payload.'}
+        return {'error_code':'INVALID_ARGUMENTS','retryable':False,'action':'stop_and_report','next_action':'Use tools/list inputSchema and the capability tool for valid section/report pairs; do not guess arguments.'}
     try: return legacy.execute_dns_lab_tool(name,arguments)
     except legacy.DNSLabToolError as error:
         return {'error_code':error.payload['error_code'],'retryable':bool(error.payload.get('retryable',False)),'action':error.payload.get('action','stop_and_report'),'next_action':'Stop and report the error code; do not probe alternate APIs.'}
@@ -39,7 +39,7 @@ async def serve(config, allow_forward=False):
     # Explicit path binding; credentials remain entirely on the execution host.
     legacy.CONFIG_PATH=Path(config)
     funcs=definitions(legacy,allow_forward); schemas={f['name']:f['parameters'] for f in funcs}
-    server=Server('dns-lab-api-tools',version='1.0.0')
+    server=Server('dns-lab-api-tools',version='1.1.0')
     lock=asyncio.Lock() # Legacy workspace/config bindings are process-global.
     @server.list_tools()
     async def list_tools():

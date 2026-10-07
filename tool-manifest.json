@@ -1,7 +1,7 @@
 {
   "project": "dns-lab-agent-tools",
-  "contract_version": "3.1",
-  "release_date": "2026-10-05",
+  "contract_version": "3.2",
+  "release_date": "2026-10-07",
   "entrypoint": "agent.dns_lab_tools",
   "definitions_symbol": "DNS_LAB_TOOL_DEFINITIONS",
   "executor_symbol": "execute_dns_lab_tool",
@@ -13,7 +13,9 @@
     "lab_dns_plan_forward_change",
     "lab_dns_apply_forward_plan",
     "lab_dns_plan_synthetic_traffic",
-    "lab_dns_run_synthetic_traffic_plan"
+    "lab_dns_run_synthetic_traffic_plan",
+    "lab_dns_get_top_report_capabilities",
+    "lab_dns_get_top_report"
   ],
   "required_first_tool": "lab_dns_get_context",
   "forbidden_fallbacks": [
@@ -24,8 +26,10 @@
     "legacy_forward_mgr"
   ],
   "source_sha256": {
-    "agent/dns_lab_tools.py": "c1c33ecaf8e004ddf24e641558329fbc0172a475e01f041397985f631157aba4",
+    "agent/dns_lab_tools.py": "3239e7e332ec8c735520480cf2bdd80d546eb5fe6e58144a9be48bbae7acaa7b",
     "agent/approve_dns_lab_plan.py": "ec368a5bfc5ab1ec3fd93e24c51dd50ba4e098095333596afa165687965c0648",
-    "agent/dns_lab_config.example.json": "c2d8e65bdcb6a91f21861f944a600218011c3010ea8e6b98f4aa97abc7d0b8ee"
+    "agent/dns_lab_config.example.json": "c2d8e65bdcb6a91f21861f944a600218011c3010ea8e6b98f4aa97abc7d0b8ee",
+    "agent/top_reports.py": "8f90090fe80d432d0281cf22f768d72e55299432c970a418e5df578b4ccdded4",
+    "agent/mcp_server.py": "17fb92e63f120c89f1a59f94f42e12769d1c2f6df9d69b96b433e41fe72b23f2"
   }
 }
