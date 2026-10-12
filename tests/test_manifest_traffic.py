@@ -109,6 +109,8 @@ class ManifestTests(unittest.TestCase):
   return {'delivery_complete':True,'reports':{name:{'status':'ready','series':[{'status':'ready','latest':value,'age_seconds':1,'latest_time':time}]} for name,value in [('cpu_us',20),('memory',30)]}}
  def test_gate_missing_stale_high_and_log_health(self):
   p=self.plan();p=t.load_plan(api,p['plan_id'])
+  # Non-lab profile keeps hard Top Reports gates.
+  p['dns_profile']='strict-appliance'
   good=self.good_report();responses=[{'delivery_complete':False},self.good_report(),self.good_report(),self.good_report()]
   responses[1]['reports']['cpu_us']['series'][0]['latest']=95
   responses[2]['reports']['memory']['status']='no_data'
@@ -117,6 +119,24 @@ class ManifestTests(unittest.TestCase):
    with patch.object(api,'_execute_dns_lab_tool',side_effect=[{'websocket_dependency_available':True},report]),self.assertRaises(t.TrafficError):t.preflight(api,p)
   client=Mock();client.request.return_value=(200,{},b'[]')
   with patch.object(api,'_execute_dns_lab_tool',side_effect=[{'websocket_dependency_available':True},good]),patch.object(api,'LabClient',return_value=client):self.assertEqual(t.preflight(api,p)['log_api']['row_count'],0)
+ def test_lab_malicious_soft_preflight_on_high_load_still_requires_log(self):
+  p=self.plan();p=t.load_plan(api,p['plan_id']);p['dns_profile']='lab-malicious'
+  high=self.good_report();high['reports']['cpu_us']['series'][0]['latest']=95
+  client=Mock();client.request.return_value=(200,{},b'[]')
+  with patch.object(api,'_execute_dns_lab_tool',side_effect=[{'websocket_dependency_available':True},high]),patch.object(api,'LabClient',return_value=client):
+   result=t.preflight(api,p)
+  self.assertTrue(result['preflight_degraded']);self.assertIn('TRAFFIC_PREFLIGHT_LOAD_HIGH',result['degrade_reasons'])
+  self.assertEqual(result['log_api']['row_count'],0)
+  client.request.return_value=(500,{},b'nope')
+  with patch.object(api,'_execute_dns_lab_tool',side_effect=[{'websocket_dependency_available':True},high]),patch.object(api,'LabClient',return_value=client),self.assertRaises(t.TrafficError) as ctx:
+   t.preflight(api,p)
+  self.assertEqual(str(ctx.exception),'TRAFFIC_PREFLIGHT_LOG_UNAVAILABLE')
+ def test_lab_malicious_soft_preflight_without_websocket(self):
+  p=self.plan();p=t.load_plan(api,p['plan_id']);p['dns_profile']='lab-malicious'
+  client=Mock();client.request.return_value=(200,{},b'[]')
+  with patch.object(api,'_execute_dns_lab_tool',side_effect=[{'websocket_dependency_available':False}]),patch.object(api,'LabClient',return_value=client):
+   result=t.preflight(api,p)
+  self.assertTrue(result['preflight_degraded']);self.assertIn('TRAFFIC_PREFLIGHT_REPORT_DEPENDENCY',result['degrade_reasons'])
  def test_receipt_exact_reconciliation_duplicates_and_missing(self):
   p=self.claim()
   with patch.object(t,'preflight',return_value={'fixture':True}):t.execute_worker(api,p['plan_id'],self.fake_result,lambda delay:None)

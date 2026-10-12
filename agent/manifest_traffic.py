@@ -277,34 +277,66 @@ def status(api,args):
  counts={name:sum(r['response_status']==name for r in receipts) for name in ('received','timeout','error','uncertain','not_attempted')}
  return {'plan_id':p['plan_id'],'plan_sha256':p['plan_sha256'],'session_id':p['session_id'],'status':status_name,'dry_run':p['dry_run'],'planned':len(receipts),'send_attempted':len(receipts)-counts['not_attempted'],'send_succeeded':sum(bool(r.get('send_succeeded')) for r in receipts),'dns_responses':counts['received'],'receipt_counts':counts,'receipts_path':str(receipt_paths(api,p['plan_id'])),'preflight':s.get('preflight'),'postflight':s.get('postflight'),'reconciliation':s.get('reconciliation'),'error_code':s.get('error_code'),'complete':False if not s.get('reconciliation') else s['reconciliation'].get('complete',False),'training_ready':False,'next_action':('Dry-run preview only; create a distinct non-dry plan for reviewed human approval.' if p['dry_run'] else 'No automatic retransmission. Reconcile logs; missing/duplicate/uncertain results remain controlled_partial. Interrupted worker requires operator review and a newly approved recovery plan.')}
 
+# Lab profiles may soft-fail Top Reports gates (missing websocket-client on wrong
+# interpreter, historical high CPU, stale samples). Log API health remains hard.
+LAB_SOFT_PREFLIGHT_PROFILES=frozenset({'lab-malicious'})
+
 def preflight(api,p):
- cap=api._execute_dns_lab_tool('lab_dns_get_top_report_capabilities',{'dns_profile':p['dns_profile']})
- if not cap.get('websocket_dependency_available'):fail('TRAFFIC_PREFLIGHT_REPORT_DEPENDENCY')
- report=api._execute_dns_lab_tool('lab_dns_get_top_report',{'dns_profile':p['dns_profile'],'section':'system','reports':['cpu_us','memory'],'window_minutes':10,'timeout_seconds':45,'stale_after_seconds':600})
- safe={'observed_at':timestamp(),'historical_statistics':True,'report_sha256':sha(canonical(report)),'delivery_complete':report.get('delivery_complete'),'metrics':{}}
- for name in ('cpu_us','memory'):
-  item=report.get('reports',{}).get(name,{});series=item.get('series',[])
-  if len(series)==1:safe['metrics'][name]={key:series[0].get(key) for key in ('latest','age_seconds','latest_time','status')}
+ profile=p.get('dns_profile') or 'lab-malicious'
+ soft=profile in LAB_SOFT_PREFLIGHT_PROFILES
+ reasons=[]
+ safe={'observed_at':timestamp(),'historical_statistics':True,'metrics':{},'dns_profile':profile,'soft_preflight':soft}
  def reject_gate(code):
   error=TrafficError(code);error.evidence=safe;raise error
- if report.get('delivery_complete') is not True:reject_gate('TRAFFIC_PREFLIGHT_REPORT_INCOMPLETE')
- for name,ceiling in [('cpu_us',85),('memory',90)]:
-  r=report.get('reports',{}).get(name,{});series=r.get('series',[])
-  if r.get('status')!='ready' or len(series)!=1:reject_gate('TRAFFIC_PREFLIGHT_REPORT_UNAVAILABLE')
-  v=series[0];latest=v.get('latest');age=v.get('age_seconds')
-  safe['metrics'][name]={'latest':latest,'age_seconds':age,'latest_time':v.get('latest_time')}
-  if isinstance(latest,bool) or not isinstance(latest,(float,int)) or not math.isfinite(latest) or not 0<=latest<=ceiling:reject_gate('TRAFFIC_PREFLIGHT_LOAD_HIGH')
-  try:freshness=(now()-parse(v.get('latest_time'))).total_seconds()
-  except TrafficError:reject_gate('TRAFFIC_PREFLIGHT_REPORT_STALE')
-  if v.get('status')!='ready' or isinstance(age,bool) or not isinstance(age,(int,float)) or not math.isfinite(age) or not 0<=age<=600 or not 0<=freshness<=600:reject_gate('TRAFFIC_PREFLIGHT_REPORT_STALE')
-  safe['metrics'][name]={'latest':latest,'age_seconds':age,'latest_time':v['latest_time']}
- client=api.LabClient(p['dns_profile']);end=now()-dt.timedelta(minutes=3);start=end-dt.timedelta(minutes=1)
+ def soft_or_reject(code):
+  if soft:reasons.append(code);return True
+  reject_gate(code)
+ cap=api._execute_dns_lab_tool('lab_dns_get_top_report_capabilities',{'dns_profile':profile})
+ report=None
+ if not cap.get('websocket_dependency_available'):
+  soft_or_reject('TRAFFIC_PREFLIGHT_REPORT_DEPENDENCY')
+  safe['operator_hint']='Install websocket-client in the runtime .venv and invoke tools with that interpreter (not bare system python3).'
+ else:
+  report=api._execute_dns_lab_tool('lab_dns_get_top_report',{'dns_profile':profile,'section':'system','reports':['cpu_us','memory'],'window_minutes':10,'timeout_seconds':45,'stale_after_seconds':600})
+  safe['report_sha256']=sha(canonical(report));safe['delivery_complete']=report.get('delivery_complete')
+  for name in ('cpu_us','memory'):
+   item=report.get('reports',{}).get(name,{});series=item.get('series',[])
+   if len(series)==1:safe['metrics'][name]={key:series[0].get(key) for key in ('latest','age_seconds','latest_time','status')}
+  if report.get('delivery_complete') is not True:soft_or_reject('TRAFFIC_PREFLIGHT_REPORT_INCOMPLETE')
+  elif report.get('error_code'):soft_or_reject(str(report.get('error_code')))
+  else:
+   for name,ceiling in [('cpu_us',85),('memory',90)]:
+    r=report.get('reports',{}).get(name,{});series=r.get('series',[])
+    if r.get('status')!='ready' or len(series)!=1:
+     soft_or_reject('TRAFFIC_PREFLIGHT_REPORT_UNAVAILABLE');continue
+    v=series[0];latest=v.get('latest');age=v.get('age_seconds')
+    safe['metrics'][name]={'latest':latest,'age_seconds':age,'latest_time':v.get('latest_time'),'status':v.get('status')}
+    if isinstance(latest,bool) or not isinstance(latest,(float,int)) or not math.isfinite(latest) or not 0<=latest<=ceiling:
+     soft_or_reject('TRAFFIC_PREFLIGHT_LOAD_HIGH');continue
+    try:freshness=(now()-parse(v.get('latest_time'))).total_seconds()
+    except TrafficError:
+     soft_or_reject('TRAFFIC_PREFLIGHT_REPORT_STALE');continue
+    if v.get('status')!='ready' or isinstance(age,bool) or not isinstance(age,(int,float)) or not math.isfinite(age) or not 0<=age<=600 or not 0<=freshness<=600:
+     soft_or_reject('TRAFFIC_PREFLIGHT_REPORT_STALE');continue
+    safe['metrics'][name]={'latest':latest,'age_seconds':age,'latest_time':v['latest_time'],'status':'ready'}
+ # Hard gate: Log API must answer. Experimental lab DNS does not block traffic; this
+ # verifies we can still read Proxy history for later reconciliation.
+ client=api.LabClient(profile);end=now()-dt.timedelta(minutes=3);start=end-dt.timedelta(minutes=1)
  query=api.urllib.parse.urlencode({'start_time':int(start.timestamp()),'end_time':int(end.timestamp()),'filter':'{}'})
  status_code,_,raw=client.request('/webApi/historylog/proxy/1?'+query)
  try:rows=json.loads(raw)
  except ValueError:reject_gate('TRAFFIC_PREFLIGHT_LOG_UNAVAILABLE')
  if status_code!=200 or not isinstance(rows,list):reject_gate('TRAFFIC_PREFLIGHT_LOG_UNAVAILABLE')
  safe['log_api']={'http_status':status_code,'row_count':len(rows),'response_sha256':sha(raw)}
+ if reasons:
+  safe['preflight_degraded']=True
+  safe['degrade_reasons']=list(reasons)
+  safe['operator_warning']=(
+   'lab-malicious soft-preflight: Top Reports gate did not hard-block (dependency/load/stale/incomplete). '
+   'Log API health still required. Prefer runtime .venv with websocket-client. training_ready remains false.'
+  )
+ else:
+  safe['preflight_degraded']=False
  return safe
 
 def _decode_question(packet):

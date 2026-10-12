@@ -44,7 +44,12 @@ class ReportError(Exception):
     def __init__(self,code,retryable=False):self.code,self.retryable=code,retryable;super().__init__(code)
 def reject(code,retryable=False):raise ReportError(code,retryable)
 def capabilities():
-    return {'schema_version':'top-reports-1','catalog':CATALOG,'default_reports':DEFAULTS,'units':UNITS,'websocket_dependency_available':importlib.util.find_spec('websocket') is not None,'transport':'GET acknowledgment plus authenticated private WebSocket statistics event','timezone':'query UTC Unix seconds; response timestamps normalized to explicit offsets','default_window_minutes':120,'known_limits':{'summary_top_n':10,'retention':'UI offers last 7 days; actual stored range unverified'},'read_only':True,'unavailable_features':['schedule/export report creation','detail pagination','arbitrary endpoint or chart type'],'next_action':'Call lab_dns_get_top_report with section=system for load, or choose reports from catalog.'}
+    ws_ok=importlib.util.find_spec('websocket') is not None
+    next_action=('Call lab_dns_get_top_report with section=system for load, or choose reports from catalog.'
+                 if ws_ok else
+                 'websocket-client missing in this interpreter. Use the deployed runtime .venv '
+                 '(…/dns-lab-agent-tools/current/.venv/bin/python) or pip-install websocket-client==1.9.2 into that env.')
+    return {'schema_version':'top-reports-1','catalog':CATALOG,'default_reports':DEFAULTS,'units':UNITS,'websocket_dependency_available':ws_ok,'transport':'GET acknowledgment plus authenticated private WebSocket statistics event','timezone':'query UTC Unix seconds; response timestamps normalized to explicit offsets','default_window_minutes':120,'known_limits':{'summary_top_n':10,'retention':'UI offers last 7 days; actual stored range unverified'},'read_only':True,'unavailable_features':['schedule/export report creation','detail pagination','arbitrary endpoint or chart type'],'next_action':next_action}
 def parse_time(value):
     try:parsed=dt.datetime.fromisoformat(value.replace('Z','+00:00'))
     except (ValueError,AttributeError):reject('TOP_REPORT_INVALID_TIME')

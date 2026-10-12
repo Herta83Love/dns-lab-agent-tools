@@ -39,7 +39,11 @@ Labels come only from this reviewed class mapping. Qname, entropy, device scores
 
 ## Load, rate, cooldown and restart
 
-Before sends, the worker obtains fresh Top Reports capabilities/report and authenticates a minimal Log API read. Delivery must complete; CPU and memory must both be ready, ≤85% and ≤90%, with age ≤600 seconds. Missing, stale, incomplete, malformed or unknown values reject execution. Reports are historical statistics, not instantaneous measurements. Before/after evidence is hashed and retained, including gate failure evidence. There is no fabricated 0% load.
+Before sends, the worker obtains fresh Top Reports capabilities/report and authenticates a minimal Log API read. **Log API health is always a hard gate.** Top Reports (websocket-client + CPU≤85% / memory≤90% / age≤600s / delivery_complete) remain the preferred gate; evidence is always retained.
+
+**lab-malicious soft-preflight (2026-10-12):** For profile `lab-malicious` only, Top Reports failures (missing `websocket` module in the wrong interpreter, incomplete/stale delivery, or historical load above ceiling) **warn and proceed** with `preflight_degraded=true` + `degrade_reasons[]`. They do **not** hard-block sends. Use the deployed runtime `.venv` (`websocket-client==1.9.2`) so Top Reports actually run when the appliance is healthy. Experimental lab DNS does not block traffic; operators still verify sessions via time-window + filter export / reconcile. `training_ready` stays false. Non-lab profiles keep the hard Top Reports gates.
+
+Reports are historical statistics, not instantaneous measurements. There is no fabricated 0% load.
 
 Only UDP A/AAAA/TXT/CNAME; no ANY, retries, alternate resolver or TCP fallback. Actual sends are spaced at least 1/qps seconds, respecting later reviewed intended offsets. Allowed rate is 0.2–0.5 QPS; max 500 selected queries. Every session claim is single-use and globally locked. Session cooldown is ≥300 seconds, and load is fetched again for the next session. Timeout/error/unknown receipt or unproven reconciliation blocks the next session. Recovery must reference the interrupted/partial plan and select a **new reviewed session** with new human approval; completed or uncertain queries are never auto-replayed.
 
