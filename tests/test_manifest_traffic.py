@@ -19,7 +19,7 @@ class ManifestTests(unittest.TestCase):
   self.config=self.root/'config.json';self.workspace=self.root/'workspace';self.workspace.mkdir(mode=0o700)
   self.materialized=self.workspace/'manifests'/'reviewed';self.materialized.mkdir(parents=True,mode=0o700);self.materialized.parent.chmod(0o700)
   self.cfg=json.loads((Path(__file__).parents[1]/'agent/dns_lab_config.example.json').read_text());self.cfg.update(workspace_root=str(self.workspace),manifest_root=str(self.workspace/'manifests'),min_free_bytes=0)
-  self.cfg['profiles']['lab-malicious'].update(base_url='https://172.16.30.209:1606',traffic_dns_server=t.TARGET[0],traffic_dns_port=53)
+  self.cfg['profiles']['lab-malicious'].update(base_url='https://192.168.10.117:1606',traffic_dns_server=t.TARGET[0],traffic_dns_port=53)
   self.config.write_text(json.dumps(self.cfg));self.config.chmod(0o600)
   self.old=(api.CONFIG_PATH,api.ROOT,api.PLANS,api.EXPORTS,api.AUDIT);api.CONFIG_PATH=self.config;api._config()
   self.build()
@@ -72,7 +72,10 @@ class ManifestTests(unittest.TestCase):
   with self.assertRaisesRegex(t.TrafficError,'COUNT'):t.make_plan(api,self.args)
  def test_target_separation_and_normal_profile_rejection(self):
   self.cfg['profiles']['lab-malicious']['traffic_dns_server']='172.16.30.209';self.config.write_text(json.dumps(self.cfg))
-  with self.assertRaisesRegex(t.TrafficError,'TARGET'):self.plan()
+  with self.assertRaisesRegex(ValueError,'LAB_TARGET_MIGRATION_REQUIRED'):self.plan()
+  self.cfg['profiles']['lab-malicious']['traffic_dns_server']=t.TARGET[0]
+  self.cfg['profiles']['lab-malicious']['base_url']='https://172.16.30.209:1606';self.config.write_text(json.dumps(self.cfg))
+  with self.assertRaisesRegex(ValueError,'LAB_TARGET_MIGRATION_REQUIRED'):self.plan()
  def test_immutable_plan_approval_sha_and_once(self):
   p=self.plan();path=t.plan_path(api,p['plan_id']);before=path.read_bytes()
   with self.assertRaisesRegex(t.TrafficError,'SHA'):t.approve(api,p['plan_id'],'0'*64)

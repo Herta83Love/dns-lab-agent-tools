@@ -37,7 +37,7 @@ def main():
     spec=importlib.util.spec_from_file_location('verified_collector',COLLECTOR)
     mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
     records=[]
-    for name,base in [('normal-dns','https://192.168.10.150:1606'),('lab-dns','http://172.16.30.209:1606')]:
+    for name,base in [('normal-dns','https://192.168.10.150:1606'),('lab-dns','https://192.168.10.117:1606')]:
         cap={'base_url':base,'verified_at':dt.datetime.now(dt.timezone.utc).isoformat(),'software_version':None,'api_base_path':'/webApi','read_only':True,'authentication':{'login_endpoint':'/login','method':'POST','provider':'environment_account_and_0600_text_password' if name=='normal-dns' else 'existing_dns_config_account_and_0600_text_password','account_environment':'SENTRY_ACCOUNT' if name=='normal-dns' else None},'tls':{'mode':'certificate_sha256_pinning','source_name':'existing_normal_collector_DEFAULT_CERT_SHA256'} if name=='normal-dns' else {'mode':'http_no_tls','source_name':None},'tests':[],'completeness_verified':False,'device_writes':0}
         try:
             if name=='normal-dns':

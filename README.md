@@ -1,5 +1,7 @@
 # DNS Lab Agent Tools
 
+> Migration status (2026-10-20): management is designated `https://192.168.10.117:1606` and recursive DNS is `192.168.10.118:53`. The browser confirms the GUI on port 1606, but the execution host cannot connect to that port; login, Log and Top Report APIs remain unverified from the execution host. Forward writes are disabled in contract 3.4. Existing protected runtime is not switched until read-only API validation and a new device-specific TLS pin succeed. The old certificate pin must not be reused.
+
 [English](#english) | [繁體中文](#繁體中文)
 
 Chatbox integration: see [CHATBOX_AGENT_INSTRUCTIONS.md](CHATBOX_AGENT_INSTRUCTIONS.md). Machine-readable release information is in [tool-manifest.json](tool-manifest.json).
@@ -200,4 +202,4 @@ A Skill installation does not register function tools. `agent.mcp_server` provid
 Top Reports (contract 3.2): use `lab_dns_get_top_report_capabilities`, then `lab_dns_get_top_report` for hardware load or DNS rankings. Respect ready/stale/no_data/pending and delivery_complete; never infer zero from missing data. [Usage / 使用說明](docs/TOP_REPORTS.md).
 
 
-Contract 3.3 / package 4.1.0: reviewed JSONL manifest traffic is available through explicit MCP `--allow-manifest-traffic` (ten tools). Use plan → exact SHA-bound human approval → run → traffic status → exact Log reconciliation. Default dry-run; no replay after interruption; fixed 172.16.30.222:53 target, ≤0.5 QPS, ≤500 selected queries, ≥300-second cooldown, fresh CPU/memory/Log preflight. Source artifacts stay read-only, class mapping is fixed, training_ready remains false. [Deployment, lineage and recovery / 部署與操作](docs/MANIFEST_TRAFFIC.md).
+Contract 3.4 / package 4.2.0: reviewed JSONL manifest traffic is available through explicit MCP `--allow-manifest-traffic` (ten tools). Use plan → exact SHA-bound human approval → run → traffic status → exact Log reconciliation. Default dry-run; no replay after interruption; fixed 192.168.10.118:53 target, ≤0.5 QPS, ≤500 selected queries, ≥300-second cooldown, fresh CPU/memory/Log preflight. Source artifacts stay read-only, class mapping is fixed, training_ready remains false. [Deployment, lineage and recovery / 部署與操作](docs/MANIFEST_TRAFFIC.md).

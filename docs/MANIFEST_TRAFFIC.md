@@ -1,12 +1,14 @@
 # Reviewed manifest traffic / 已審核清單流量
 
-Package 4.1.0, tool contract 3.3, MCP 1.2.0. Default binding stays six read-only tools. `--allow-manifest-traffic` adds four guarded tools (ten total): plan, run, status, and exact Log reconciliation. The legacy seed-generated traffic functions remain absent from MCP. `--allow-forward-changes` is independent and still requires approval.
+> 2026-10-20 遷移：`.117:1606` GUI 可由瀏覽器讀取，但執行主機尚無法連線；`.118:53` 僅確認 TCP 埠可連，未發送 DNS 封包。部署與執行須待唯讀 API、憑證 pin 及能力設定重新驗證。
+
+Package 4.2.0, tool contract 3.4, MCP 1.2.0. Default binding stays six read-only tools. `--allow-manifest-traffic` adds four guarded tools (ten total): plan, run, status, and exact Log reconciliation. The legacy seed-generated traffic functions remain absent from MCP. `--allow-forward-changes` is independent and still requires approval.
 
 ## Deployment and recovery
 
 The supported entry point is `/home/jackie_tsai/.local/share/dns-lab-agent-tools/current`, an atomically selected isolated release. Repository/vendor checkouts are reference/development copies, not production runtimes. `scripts/deploy_runtime.py` validates source hashes, installs its own dependency environment, copies the protected production config beside the modules as `agent/dns_lab_config.json` (0600), and accepts MCP context/tools-list before switching `current`. It marks the previous October 7 runtime deprecated. Context reports actual runtime path, commit, config presence/path, non-secret policy fingerprint and registered MCP names. Credential contents and accounts are excluded from the fingerprint.
 
-管理／Log API 固定為 `https://172.16.30.209:1606`，保留既有憑證 pin 與 secret-file provider。Manifest 流量目的地固定為 `172.16.30.222:53`，不由 Agent 指定。部署設定檔只引用既有 secret file，不能拿 example 設定檔代替正式設定，也不能只更新 Python 模組。
+管理／Log API 固定為 `https://192.168.10.117:1606`，新設備須使用其獨立驗證的憑證 pin 與受保護 secret-file provider；舊設備 pin 不可沿用。Manifest 流量目的地固定為 `192.168.10.118:53`，不由 Agent 指定。部署設定檔只引用既有 secret file，不能拿 example 設定檔代替正式設定，也不能只更新 Python 模組。
 
 Run the deployment script **on the gateway** with a prepared clean bundle and explicit protected `--config-source`. Installation acceptance sends no DNS traffic and performs no device configuration writes. Use [Chatbox configuration](../examples/chatbox-mcp-manifest-windows.json), then reconnect MCP. Six tools means traffic opt-in is missing; ten tools means the manifest binding is present. Use context after conversation compaction; do not search vendor copies or substitute shell commands.
 

@@ -1,7 +1,7 @@
 {
   "project": "dns-lab-agent-tools",
-  "contract_version": "3.3",
-  "release_date": "2026-10-07",
+  "contract_version": "3.4",
+  "release_date": "2026-10-20",
   "entrypoint": "agent.dns_lab_tools",
   "definitions_symbol": "DNS_LAB_TOOL_DEFINITIONS",
   "executor_symbol": "execute_dns_lab_tool",
@@ -30,17 +30,17 @@
     "legacy_forward_mgr"
   ],
   "source_sha256": {
-    "agent/dns_lab_tools.py": "28b663a1f9f5d5d83d5862fddcc9f62f79d3e0fd3461c274d6cefad33510c235",
+    "agent/dns_lab_tools.py": "b4178fa7c426ebfc0a336b354a38ecef7b8da9cc48d2dc0057d82fd5c779dd17",
     "agent/approve_dns_lab_plan.py": "806f5243125c5017f3e3cbb040f3fb5b713435bd22a7babd85bade8c710a1b67",
-    "agent/dns_lab_config.example.json": "41c36932870bf0b74b38f07479ed3cb55180a95c79424d76305ab83a4338d36c",
+    "agent/dns_lab_config.example.json": "a57fe6d10cd925aa97f07300dae173be314a1c6955c007b50e56c0cbe7954dad",
     "agent/top_reports.py": "8f90090fe80d432d0281cf22f768d72e55299432c970a418e5df578b4ccdded4",
     "agent/mcp_server.py": "5e4dd87f9547cfee825bd63b0f170c7491c4b3948dfc95097173a3c4af90909b",
-    "agent/manifest_traffic.py": "0c0cfc20e0da0999945be3abc4065bd021bfc372349a430775a56b498645b0aa",
+    "agent/manifest_traffic.py": "1e3029502db9a894c08ebbefc3dadf12e9703df1e3d7e65a1998b4ee0700594d",
     "agent/manifest_worker.py": "5ee1a98ad5c8470bcd3121457caf12d44b91812cedcd2e172186db80f57a52ba",
     "agent/log_exports.py": "1e905d4e97c5641f58fe368ad9f695d6ebc6cb74a374e9e96d77549aa1ace6bf",
     "scripts/import_reviewed_manifest.py": "f13a35aafa33a40874a3cdbb6715448d6ce1babc4211d4be48ed20fc83286392",
-    "scripts/deploy_runtime.py": "01a6dc861808c0f3649922a76c676a8e178df6dfe29e862322ae71c0362758f4",
-    "scripts/deploy_acceptance.py": "eb8c07ab9cca95ce152d1aaf0ec8f9bb104ba981b3edcc945ab28892a07aaa6a"
+    "scripts/deploy_runtime.py": "aa0590ee884991b41bb2f174c88719ea13694fb33c1b3c1e51241df9186ec196",
+    "scripts/deploy_acceptance.py": "54c3bbad66275705a6cc646ee143f2cac2bc04c82c99707a5c4ee303cf77ae99"
   },
   "mcp_binding": {
     "default_read_only_count": 6,

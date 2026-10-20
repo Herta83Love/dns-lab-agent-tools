@@ -14,11 +14,14 @@ def deploy(bundle,config_source,deployment_root):
  bundle=Path(bundle).resolve();source=Path(config_source)
  if source.is_symlink() or source.stat().st_mode&0o077:raise ValueError()
  cfg=json.loads(source.read_text());profile=cfg['profiles']['lab-malicious']
- if profile['base_url']!='https://172.16.30.209:1606':raise ValueError()
+ if profile['base_url']!='https://192.168.10.117:1606':raise ValueError()
+ import re
+ if not re.fullmatch('[a-fA-F0-9]{64}',profile.get('certificate_sha256','')):raise ValueError()
+ if profile.get('allow_forward_writes'):raise ValueError()
  secret=Path(profile['secret_file'])
  if not secret.is_file() or secret.stat().st_mode&0o077:raise ValueError()
  # Copy references, never secret contents. Account remains in protected config only.
- profile['traffic_dns_server']='172.16.30.222';profile['traffic_dns_port']=53
+ profile['traffic_dns_server']='192.168.10.118';profile['traffic_dns_port']=53
  workspace=Path(cfg.get('workspace_root','/home/jackie_tsai/Herta-Chat/agent_workspace/dns_lab'))
  cfg['manifest_root']=str(workspace/'manifests')
  root=Path(deployment_root).resolve();root.mkdir(parents=True,exist_ok=True,mode=0o700);root.chmod(0o700)
@@ -29,7 +32,7 @@ def deploy(bundle,config_source,deployment_root):
  manifest=json.loads((bundle/'tool-manifest.json').read_text())
  for relative,digest in manifest['source_sha256'].items():
   if Path(relative).is_absolute() or '..' in Path(relative).parts or hashlib.sha256((bundle/relative).read_bytes()).hexdigest()!=digest:raise ValueError()
- release=releases/('20261007-'+commit[:12])
+ release=releases/('20261020-'+commit[:12])
  if release.exists():raise ValueError()
  stage=Path(tempfile.mkdtemp(prefix='.deploy-',dir=releases));stage.chmod(0o700)
  try:
@@ -48,8 +51,8 @@ def deploy(bundle,config_source,deployment_root):
   link=root/('.current-'+commit[:12]);link.symlink_to(release);os.replace(link,root/'current')
   old=root/'mcp-binding-20261007-v1'
   if old.is_dir():
-   dest=old/'DEPRECATED.json';dest.write_text(json.dumps({'deprecated':True,'replacement':str(root/'current'),'reason':'Use atomic runtime with protected adjacent config and contract 3.3'}));dest.chmod(0o600)
-  print(json.dumps({'deployed':True,'runtime':str(release),'current':str(root/'current'),'git_commit':commit,'tool_contract_version':'3.3','config_mode':'0600','mcp_readonly_tools':6,'mcp_manifest_enabled_tools':10,'device_writes':0,'dns_packets_sent':0}))
+   dest=old/'DEPRECATED.json';dest.write_text(json.dumps({'deprecated':True,'replacement':str(root/'current'),'reason':'Use atomic runtime with protected adjacent config and contract 3.4'}));dest.chmod(0o600)
+  print(json.dumps({'deployed':True,'runtime':str(release),'current':str(root/'current'),'git_commit':commit,'tool_contract_version':'3.4','config_mode':'0600','mcp_readonly_tools':6,'mcp_manifest_enabled_tools':10,'device_writes':0,'dns_packets_sent':0}))
  except BaseException:
   if stage.exists():shutil.rmtree(stage)
   # Failed acceptance leaves an unactivated release for operator inspection.

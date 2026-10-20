@@ -5,7 +5,7 @@ description: Authenticate, discover, query and export DNS appliance logs, and pr
 
 Use `dns_security_api.Tools` and `DNS_TOOL_DEFINITIONS`; install this repository with `python -m pip install .`. Read [the contract](references/contract.md) before configuring a device. Do not operate schedulers, datasets, model training, traffic generators or VLLM services.
 
-Normal DNS is `https://192.168.10.150:1606`, read-only. Lab DNS is `http://172.16.30.209:1606`. Every call requires both a named profile and its exact target URL. Only this laboratory URL can receive forward writes in the new tools.
+Normal DNS is `https://192.168.10.150:1606`, read-only. Lab DNS is `https://192.168.10.117:1606`. Every call requires both a named profile and its exact target URL. The laboratory write path remains disabled pending execution-host API and certificate validation.
 
 Credentials come from environment variables or a JSON secret file with exactly mode 0600. Sessions stay in memory. For self-signed HTTPS supply a trusted CA file or the existing trusted per-client certificate fingerprint. Never disable verification globally. Different appliances require different authentication and capability profiles. Do not guess endpoints. A failed discovery requires vendor documentation or operator-provided evidence.
 
@@ -19,10 +19,10 @@ Forward workflow: read → plan → inspect diff and before hash → explicit ap
 
 After conversation compression reload the named profile and sanitized capability evidence, tool version and checkpoint. Never recover credentials from chat history. Use the preserved plan ID and hash for forward recovery; do not rebuild or replay a consumed plan.
 
-Minimal example: execute `dns_authenticate` with `{"profile":"lab","target":"http://172.16.30.209:1606"}` after configuring authentication. Success returns `{"ok":true,"result":{"authenticated":true,"mode":"json"},"tool_version":"4.0.0"}`. Errors return a code, retryable flag and next action; only retry the same read when instructed. See the contract for all interfaces and current limitations.
+Minimal example: execute `dns_authenticate` with `{"profile":"lab","target":"https://192.168.10.117:1606"}` after configuring authentication. Success returns `{"ok":true,"result":{"authenticated":true,"mode":"json"},"tool_version":"4.2.0"}`. Errors return a code, retryable flag and next action; only retry the same read when instructed. See the contract for all interfaces and current limitations.
 
 
 Top Reports (contract 3.2): use `lab_dns_get_top_report_capabilities`, then `lab_dns_get_top_report` for hardware load or DNS rankings. Respect ready/stale/no_data/pending and delivery_complete; never infer zero from missing data. [Usage / 使用說明](../../docs/TOP_REPORTS.md).
 
 
-Contract 3.3 / package 4.1.0: reviewed JSONL manifest traffic is available through explicit MCP `--allow-manifest-traffic` (ten tools). Use plan → exact SHA-bound human approval → run → traffic status → exact Log reconciliation. Default dry-run; no replay after interruption; fixed 172.16.30.222:53 target, ≤0.5 QPS, ≤500 selected queries, ≥300-second cooldown, fresh CPU/memory/Log preflight. Source artifacts stay read-only, class mapping is fixed, training_ready remains false. [Deployment, lineage and recovery / 部署與操作](../../docs/MANIFEST_TRAFFIC.md).
+Contract 3.4 / package 4.2.0: reviewed JSONL manifest traffic is available through explicit MCP `--allow-manifest-traffic` (ten tools). Use plan → exact SHA-bound human approval → run → traffic status → exact Log reconciliation. Default dry-run; no replay after interruption; fixed 192.168.10.118:53 target, ≤0.5 QPS, ≤500 selected queries, ≥300-second cooldown, fresh CPU/memory/Log preflight. Source artifacts stay read-only, class mapping is fixed, training_ready remains false. [Deployment, lineage and recovery / 部署與操作](../../docs/MANIFEST_TRAFFIC.md).

@@ -1,10 +1,12 @@
-# DNS Security API Tools
+
+> 遷移狀態（2026-10-20）：管理介面指定為 `https://192.168.10.117:1606`，遞迴 DNS 為 `192.168.10.118:53`。瀏覽器已確認 GUI 位於 1606 埠，但執行主機尚無法連線；登入、Log、Top Report API 尚未於執行主機驗證；contract 3.4 關閉 forward 寫入。完成唯讀驗證及新設備專屬憑證 pin 前，不切換現有部署，亦不沿用舊憑證 pin。# DNS Security API Tools
+
 
 新版 API 介面位於 `src/dns_security_api`，既有 `agent/` 工具保留相容性。新版不包含排程、Dataset 治理、模型工作或流量產生。
 
 安裝：`python -m pip install .`。載入 `Tools` 與 `DNS_TOOL_DEFINITIONS`，以 profile 與精確 target 呼叫各工具。設備設定範本在 `examples/profiles.json`；它尚未配置認證或設備專屬 endpoint，不能直接當成完成的設備設定。
 
-正常 DNS `https://192.168.10.150:1606` 唯讀；實驗 DNS `https://172.16.30.209:1606` 的 forward 修改必須先預覽、明確核准計畫 SHA-256，再套用並驗證。新版硬性阻擋正常 DNS 及未知主機的 forward 寫入。
+正常 DNS `https://192.168.10.150:1606` 唯讀；實驗 DNS `https://192.168.10.117:1606` 的 forward 修改必須先預覽、明確核准計畫 SHA-256，再套用並驗證。新版硬性阻擋正常 DNS 及未知主機的 forward 寫入。
 
 認證支援 HTTP、HTTPS、環境變數、0600 JSON／既有純密碼秘密檔、cookie/token、CSRF、GET 到期重登入及登出。自簽憑證須提供可信 CA 檔，或沿用可信來源的單一 client 憑證指紋綁定；不得全域停用 TLS 驗證。Session 不寫入 state。
 
@@ -22,4 +24,4 @@
 Top Reports (contract 3.2): use `lab_dns_get_top_report_capabilities`, then `lab_dns_get_top_report` for hardware load or DNS rankings. Respect ready/stale/no_data/pending and delivery_complete; never infer zero from missing data. [Usage / 使用說明](docs/TOP_REPORTS.md).
 
 
-Contract 3.3 / package 4.1.0: reviewed JSONL manifest traffic is available through explicit MCP `--allow-manifest-traffic` (ten tools). Use plan → exact SHA-bound human approval → run → traffic status → exact Log reconciliation. Default dry-run; no replay after interruption; fixed 172.16.30.222:53 target, ≤0.5 QPS, ≤500 selected queries, ≥300-second cooldown, fresh CPU/memory/Log preflight. Source artifacts stay read-only, class mapping is fixed, training_ready remains false. [Deployment, lineage and recovery / 部署與操作](docs/MANIFEST_TRAFFIC.md).
+Contract 3.4 / package 4.2.0: reviewed JSONL manifest traffic is available through explicit MCP `--allow-manifest-traffic` (ten tools). Use plan → exact SHA-bound human approval → run → traffic status → exact Log reconciliation. Default dry-run; no replay after interruption; fixed 192.168.10.118:53 target, ≤0.5 QPS, ≤500 selected queries, ≥300-second cooldown, fresh CPU/memory/Log preflight. Source artifacts stay read-only, class mapping is fixed, training_ready remains false. [Deployment, lineage and recovery / 部署與操作](docs/MANIFEST_TRAFFIC.md).

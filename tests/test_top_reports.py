@@ -9,7 +9,7 @@ NOW=dt.datetime(2026,10,7,4,0,tzinfo=dt.timezone.utc)
 START=NOW-dt.timedelta(minutes=10)
 DATA={'title':'CPU','time':['2026-10-07 11:50','2026-10-07 11:55'],'data':[0,20]}
 class Client:
- def __init__(self,*a,**kw):self.cfg={'base_url':'https://172.16.30.209:1606','certificate_sha256':'0'*64};self.cookies=[]
+ def __init__(self,*a,**kw):self.cfg={'base_url':'https://192.168.10.117:1606','certificate_sha256':'0'*64};self.cookies=[]
 class FakeTransport:
  closed=0
  def __init__(self,*a):self.requests=[]
@@ -85,7 +85,7 @@ class Tests(unittest.TestCase):
   transport.ws=Mock();transport.ws.recv.side_effect=[json.dumps({'event':'pusher:ping'}),json.dumps({'event':'statistics','channel':'unrelated','data':{'hash_id':'wanted'}}),json.dumps({'event':'statistics','channel':'private-boulevard','data':{'hash_id':'other'}}),json.dumps({'event':'statistics','channel':'private-boulevard','data':{'hash_id':'wanted','data':DATA}})]
   self.assertEqual(transport.collect({'wanted':'cpu_us'})[1],DATA);transport.ws.send.assert_called_once()
  def test_https_and_pin_required(self):
-  c=Client();c.cfg['base_url']='http://172.16.30.209:1606'
+  c=Client();c.cfg['base_url']='http://192.168.10.117'
   with self.assertRaisesRegex(t.ReportError,'HTTPS'):t.Transport(c,0,None)
  def test_standalone_import_keeps_registration(self):
   p=Path(__file__).resolve().parents[1]/'agent/dns_lab_tools.py';spec=importlib.util.spec_from_file_location('standalone_tools',p);m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)

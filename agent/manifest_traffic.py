@@ -16,7 +16,7 @@ import subprocess
 import sys
 import time
 
-TARGET=('172.16.30.222',53)
+TARGET=('192.168.10.118',53)
 QTYPES={'A':1,'AAAA':28,'TXT':16,'CNAME':5}
 SCHEMA='dns-lab-manifest-plan-1'
 MAX_FILE=32*1024*1024
@@ -181,7 +181,7 @@ def make_plan(api,args):
  if not Draft202012Validator(PLAN_ARGS).is_valid(args):fail('TRAFFIC_INVALID_ARGUMENTS')
  if not math.isfinite(args.get('qps',0.5)):fail('TRAFFIC_INVALID_ARGUMENTS')
  cfg=api._config();profile=args.get('dns_profile',cfg['default_profile']);_,p=api._profile(profile)
- if profile!='lab-malicious' or (p.get('traffic_dns_server'),p.get('traffic_dns_port'))!=TARGET or p.get('base_url')!='https://172.16.30.209:1606':fail('TRAFFIC_LAB_TARGET_REQUIRED')
+ if profile!='lab-malicious' or (p.get('traffic_dns_server'),p.get('traffic_dns_port'))!=TARGET or p.get('base_url')!='https://192.168.10.117:1606':fail('TRAFFIC_LAB_TARGET_REQUIRED')
  session,path,digest=load_manifest(api,args);api._secure_dirs()
  selected=session['planned_queries'][:args.get('queries_per_session',500)]
  recovery=args.get('recovery_from_plan_id')
@@ -225,7 +225,8 @@ def claim(api,args,spawn=True):
  if p['dry_run']:fail('TRAFFIC_DRY_RUN_ONLY')
  if now()>parse(p['expires_at']):fail('TRAFFIC_PLAN_EXPIRED')
  cfg=api._config();_,profile=api._profile(p['dns_profile'])
- if (profile.get('traffic_dns_server'),profile.get('traffic_dns_port'))!=TARGET:fail('TRAFFIC_LAB_TARGET_REQUIRED')
+ if (profile.get('traffic_dns_server'),profile.get('traffic_dns_port'))!=TARGET or profile.get('base_url')!='https://192.168.10.117:1606':fail('TRAFFIC_LAB_TARGET_REQUIRED')
+ if p.get('target_ip')!=TARGET[0] or p.get('target_port')!=TARGET[1]:fail('TRAFFIC_PLAN_TARGET_CHANGED')
  if api.runtime_identity(cfg)['config_fingerprint']!=p['runtime_identity']['config_fingerprint']:fail('TRAFFIC_CONFIG_CHANGED')
  if any(api.runtime_identity(cfg).get(k)!=p['runtime_identity'].get(k) for k in ('git_commit','source_fingerprint','tool_contract_version')):fail('TRAFFIC_RUNTIME_CHANGED')
  load_manifest(api,{'batch_manifest_path':p['batch_manifest_path'],'batch_manifest_sha256':p['batch_manifest_sha256'],'session_id':p['session_id'],'planned_queries_sha256':p['planned_queries_sha256']})

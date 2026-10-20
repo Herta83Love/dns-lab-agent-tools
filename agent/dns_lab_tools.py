@@ -31,7 +31,7 @@ CONFIG_PATH = Path(__file__).with_name("dns_lab_config.json")
 AUDIT = ROOT / "audit.jsonl"
 PLANS = ROOT / "plans"
 EXPORTS = ROOT / "exports"
-TOOL_CONTRACT_VERSION = "3.3"
+TOOL_CONTRACT_VERSION = "3.4"
 FORWARD_API_SCHEMA_VERSION = "isafer-domain-route-v2.4-nested"
 
 AGENT_RECOVERY_RULES = [
@@ -254,7 +254,13 @@ DNS_LAB_TOOL_DEFINITIONS = [
 def _profile(name=None):
     cfg=_config(); name=name or cfg["default_profile"]
     if name not in cfg["profiles"]: raise ValueError("unknown DNS profile")
-    return name,cfg["profiles"][name]
+    profile=cfg["profiles"][name]
+    if name=="lab-malicious":
+        if profile.get("base_url")!="https://192.168.10.117:1606" or profile.get("traffic_dns_server")!="192.168.10.118" or profile.get("traffic_dns_port")!=53:
+            raise ValueError("LAB_TARGET_MIGRATION_REQUIRED")
+        if profile.get("allow_forward_writes"):
+            raise ValueError("LAB_WRITES_DISABLED_PENDING_API_VALIDATION")
+    return name,profile
 def _sha(data: bytes): return hashlib.sha256(data).hexdigest()
 def _canonical(value): return json.dumps(value,sort_keys=True,separators=(",",":"),ensure_ascii=False)
 def _now(): return dt.datetime.now(dt.timezone.utc)
@@ -366,7 +372,7 @@ def _context(profile_name=None):
         "tool_contract_version": TOOL_CONTRACT_VERSION,
         "runtime":runtime_identity(cfg),
         "mcp_binding":{"active":bool(globals().get("_MCP_ENABLED_TOOLS")),"registered_tools":globals().get("_MCP_ENABLED_TOOLS",[])},
-        "manifest_traffic": {"enabled_in_canonical":True,"mcp_requires_flag":"--allow-manifest-traffic","manifest_root":str(Path(cfg.get("manifest_root",ROOT/"manifests"))),"target_ip":"172.16.30.222","target_port":53,"execution_host_requirement":"POSIX gateway; Windows callers use SSH MCP","max_queries":500,"qps_max":0.5,"default_dry_run":True,"cooldown_seconds_min":300,"approved_manifest_only":True,"no_auto_replay":True},
+        "manifest_traffic": {"enabled_in_canonical":True,"mcp_requires_flag":"--allow-manifest-traffic","manifest_root":str(Path(cfg.get("manifest_root",ROOT/"manifests"))),"target_ip":"192.168.10.118","target_port":53,"execution_host_requirement":"POSIX gateway; Windows callers use SSH MCP","max_queries":500,"qps_max":0.5,"default_dry_run":True,"cooldown_seconds_min":300,"approved_manifest_only":True,"no_auto_replay":True},
         "top_reports": {
             "capabilities_tool": "lab_dns_get_top_report_capabilities",
             "query_tool": "lab_dns_get_top_report",
